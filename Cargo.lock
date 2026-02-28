@@ -1528,6 +1528,7 @@ dependencies = [
 name = "fcad-studio"
 version = "0.1.0"
 dependencies = [
+ "bevy_ecs",
  "fcad-core",
  "fcad-renderer",
  "raw-window-handle",
