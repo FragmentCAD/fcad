@@ -1,5 +1,5 @@
 use bevy_ecs::prelude::*;
-use fcad_core::domain::{Deleted, Geometry, Layer, ColorOverride};
+use fcad_core::domain::{Geometry, Layer, ColorOverride};
 use fcad_core::domain::math::primitives::Line;
 use fcad_core::infrastructure::ecs::ncs::NcsDictionary;
 use std::collections::HashMap;

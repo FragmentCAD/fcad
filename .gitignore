@@ -1,0 +1,40 @@
+# Rust Workspace
+/target/
+**/*.rs.bk
+
+# Node modules
+node_modules/
+**/node_modules/
+
+# Vite / React Build Output
+dist/
+dist-ssr/
+**/dist/
+**/dist-ssr/
+
+# Tauri Specific
+**/src-tauri/target/
+**/src-tauri/gen/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Editor directories and files
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+.DS_Store
+
+# Environment Variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
