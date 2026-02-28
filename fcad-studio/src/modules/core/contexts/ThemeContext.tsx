@@ -20,7 +20,7 @@ const availableThemes = signal<string[]>([]);
 const ThemeContext = createContext({
     currentTheme,
     availableThemes,
-    switchTheme: async (name: string) => { },
+    switchTheme: async (_name: string) => { },
 });
 
 export function ThemeProvider({ children }: { children: any }) {

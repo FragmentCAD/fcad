@@ -3,6 +3,7 @@ import { Button } from "@/modules/core/components/ui/button";
 import { useTranslation } from "react-i18next";
 import i18n from "@/modules/core/lib/i18n";
 import { useTheme } from "@/modules/core/contexts/ThemeContext";
+import { LayerSelector } from "@/modules/core/components/layout/LayerSelector";
 
 export function Header() {
   const { t } = useTranslation();
@@ -28,6 +29,8 @@ export function Header() {
             <Save className="h-4 w-4" />
           </Button>
         </div>
+        <div className="bg-border mx-2 h-4 w-px" />
+        <LayerSelector />
       </div>
       <div className="flex items-center gap-2">
         <Button variant="outline" size="sm" className="h-8">
