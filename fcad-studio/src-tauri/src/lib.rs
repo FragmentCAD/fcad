@@ -57,25 +57,27 @@ fn hit_test(state: tauri::State<'_, AppState>, x: f64, y: f64) -> Vec<String> {
 }
 
 #[tauri::command]
-fn update_viewport_rect(state: tauri::State<'_, AppState>, x: f64, y: f64, width: f64, height: f64) {
+fn update_viewport_rect(window: tauri::Window, state: tauri::State<'_, AppState>, x: f64, y: f64, width: f64, height: f64) {
+    let factor = window.scale_factor().unwrap_or(1.0);
     if let Ok(tx) = state.render_tx.lock() {
         let _ = tx.send(fcad_renderer::RenderMessage::ViewportUpdate(fcad_renderer::ViewportRect {
-            x: x as u32,
-            y: y as u32,
-            width: width as u32,
-            height: height as u32,
+            x: (x * factor) as u32,
+            y: (y * factor) as u32,
+            width: (width * factor) as u32,
+            height: (height * factor) as u32,
         }));
     }
 }
 
 /// Comando IPC para Zoom de cámara (enviado desde React onWheel).
 #[tauri::command]
-fn send_camera_zoom(state: tauri::State<'_, AppState>, factor: f32, anchor_x: f32, anchor_y: f32) {
+fn send_camera_zoom(window: tauri::Window, state: tauri::State<'_, AppState>, factor: f32, anchor_x: f32, anchor_y: f32) {
+    let scale = window.scale_factor().unwrap_or(1.0) as f32;
     if let Ok(tx) = state.render_tx.lock() {
         let _ = tx.send(fcad_renderer::RenderMessage::CameraZoom {
             factor,
-            anchor_x,
-            anchor_y,
+            anchor_x: anchor_x * scale,
+            anchor_y: anchor_y * scale,
         });
     }
     // Sincronizar zoom en el estado para el SnapEngine
@@ -85,9 +87,13 @@ fn send_camera_zoom(state: tauri::State<'_, AppState>, factor: f32, anchor_x: f3
 
 /// Comando IPC para Pan de cámara (enviado desde React middle-drag).
 #[tauri::command]
-fn send_camera_pan(state: tauri::State<'_, AppState>, dx: f32, dy: f32) {
+fn send_camera_pan(window: tauri::Window, state: tauri::State<'_, AppState>, dx: f32, dy: f32) {
+    let scale = window.scale_factor().unwrap_or(1.0) as f32;
     if let Ok(tx) = state.render_tx.lock() {
-        let _ = tx.send(fcad_renderer::RenderMessage::CameraPan { dx, dy });
+        let _ = tx.send(fcad_renderer::RenderMessage::CameraPan { 
+            dx: dx * scale, 
+            dy: dy * scale 
+        });
     }
 }
 
@@ -118,7 +124,8 @@ fn get_active_tool(state: tauri::State<'_, AppState>) -> String {
 /// Envía un clic del usuario al ToolManager.
 /// Devuelve un JSON con la respuesta de la herramienta.
 #[tauri::command]
-fn send_tool_click(state: tauri::State<'_, AppState>, button: String, x: f32, y: f32) -> String {
+fn send_tool_click(window: tauri::Window, state: tauri::State<'_, AppState>, button: String, x: f32, y: f32) -> String {
+    let scale = window.scale_factor().unwrap_or(1.0) as f32;
     use fcad_core::application::input::{InputEvent, MouseButton};
     let btn = match button.as_str() {
         "left" => MouseButton::Left,
@@ -126,7 +133,11 @@ fn send_tool_click(state: tauri::State<'_, AppState>, button: String, x: f32, y:
         "middle" => MouseButton::Middle,
         _ => MouseButton::Left,
     };
-    let event = InputEvent::Click { button: btn, x, y };
+    let event = InputEvent::Click { 
+        button: btn, 
+        x: x * scale, 
+        y: y * scale 
+    };
 
     let mut tm = state.tool_manager.lock().unwrap();
     let index = state.spatial_index.lock().unwrap();

@@ -141,7 +141,7 @@ impl<'window> Renderer<'window> {
         // Setup mock camera matching window sizes
         let aspect = width as f32 / height as f32;
         let view_proj = glam::Mat4::orthographic_rh(-10.0 * aspect, 10.0 * aspect, -10.0, 10.0, -1.0, 1.0);
-        let mut camera_uniform = CameraUniform {
+        let camera_uniform = CameraUniform {
             view_proj: view_proj.to_cols_array_2d(),
         };
 
@@ -389,6 +389,7 @@ impl<'window> Renderer<'window> {
                 if vp.y + vp.height > self.config.height { vp.height = self.config.height - vp.y; }
 
                 if vp.width > 0 && vp.height > 0 {
+                    render_pass.set_viewport(vp.x as f32, vp.y as f32, vp.width as f32, vp.height as f32, 0.0, 1.0);
                     render_pass.set_scissor_rect(vp.x, vp.y, vp.width, vp.height);
                 }
             }
@@ -500,12 +501,14 @@ where
             // Procesar mensajes pendientes sin bloquear
             while let Ok(msg) = rx.try_recv() {
                 match msg {
-                    RenderMessage::ViewportUpdate(vp) => current_vp = Some(vp),
+                    RenderMessage::ViewportUpdate(vp) => {
+                        current_vp = Some(vp);
+                        cam.screen_width = vp.width as f32;
+                        cam.screen_height = vp.height as f32;
+                        camera_dirty = true;
+                    }
                     RenderMessage::WindowResize(w, h) => {
                         renderer.resize(w, h);
-                        cam.screen_width = w as f32;
-                        cam.screen_height = h as f32;
-                        camera_dirty = true;
                     }
                     RenderMessage::CameraZoom { factor, anchor_x, anchor_y } => {
                         cam.zoom_at(factor, anchor_x, anchor_y);
