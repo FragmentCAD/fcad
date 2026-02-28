@@ -238,7 +238,7 @@ pub fn run() {
             let size = main_window.inner_size().unwrap_or(tauri::PhysicalSize::new(800, 600));
 
             // --- Inicialización de Capas (NCS) ---
-            let ncs_path = std::path::Path::new("..").join("..").join("fcad-assets").join("ncs").join("ncs_layers_A.yaml");
+            let ncs_path = std::path::Path::new("..").join("..").join("fcad-assets").join("standards").join("layers").join("ncs_layers_A.yaml");
             let mut world_guard = world.lock().unwrap();
             
             use fcad_core::infrastructure::ecs::ncs::{LayerStandards, ActiveLayer};
