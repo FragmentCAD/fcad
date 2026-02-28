@@ -1,0 +1,18 @@
+layers:
+  - name: "A-WALL"
+    description: "Muros arquitectónicos, tabiques interiores, paredes exteriores. Elementos estructurales y divisorios."
+    color_hex: "#000000"
+    line_weight: 0.35
+    line_type: "Continuous"
+
+  - name: "A-DOOR"
+    description: "Puertas arquitectónicas, marcos de puertas, batientes y representaciones 2D de abatimiento."
+    color_hex: "#FF0000"
+    line_weight: 0.18
+    line_type: "Continuous"
+
+  - name: "A-GLAZ"
+    description: "Acristalamiento arquitectónico, ventanas, divisiones de vidrio, muros cortina y cancelería visible."
+    color_hex: "#00FFFF"
+    line_weight: 0.25
+    line_type: "Continuous"

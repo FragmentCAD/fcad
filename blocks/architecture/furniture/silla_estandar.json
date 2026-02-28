@@ -1,0 +1,14 @@
+{
+  "name": "Silla Estándar",
+  "type": "static",
+  "ai_tags": [
+    "silla",
+    "asiento",
+    "mueble",
+    "oficina",
+    "comedor"
+  ],
+  "parameters": {
+    "uniform_scale_only": true
+  }
+}

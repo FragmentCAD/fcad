@@ -1,0 +1,13 @@
+{
+  "name": "IPN_200",
+  "description": "Perfil de acero laminado en caliente IPN 200 según norma europea.",
+  "category": "structural",
+  "tags": ["acero", "perfil", "IPN", "estructura"],
+  "insertion_point": [0, 0],
+  "parameters": {
+    "h": 200,
+    "b": 90,
+    "tw": 7.5,
+    "tf": 11.3
+  }
+}

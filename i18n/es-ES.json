@@ -1,0 +1,37 @@
+{
+  "ui": {
+    "app": {
+      "title": "FragmentCAD"
+    },
+    "header": {
+      "export_block": "Exportar Bloque"
+    },
+    "panels": {
+      "properties": "PROPIEDADES",
+      "properties_empty": "Selecciona un objeto para ver sus propiedades",
+      "explorer": "Explorador",
+      "ai": "IA",
+      "layers": "CAPAS",
+      "assets": "ACTIVOS",
+      "assets_empty": "No hay bloques cargados"
+    },
+    "statusbar": {
+      "ready": "Listo",
+      "fps": "FPS",
+      "tech_stack": "BUN + TAURI + PREACT"
+    },
+    "ai_console": {
+      "title": "Consola IA (MCP)",
+      "welcome": "Bienvenido a FragmentCAD. ¿En qué puedo ayudarte hoy?",
+      "placeholder": "Escribe un comando o pregunta...",
+      "send": "Enviar",
+      "mock_response": "Entendido. Analizando comando: \"{{input}}\". (Conexión MCP pendiente)"
+    }
+  },
+  "core": {
+    "errors": {
+      "layer_locked": "La capa se encuentra bloqueada",
+      "geom_invalid": "Geometría inválida"
+    }
+  }
+}

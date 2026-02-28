@@ -1,0 +1,37 @@
+{
+  "ui": {
+    "app": {
+      "title": "FragmentCAD"
+    },
+    "header": {
+      "export_block": "Export Block"
+    },
+    "panels": {
+      "properties": "PROPERTIES",
+      "properties_empty": "Select an object to view its properties",
+      "explorer": "Explorer",
+      "ai": "AI",
+      "layers": "LAYERS",
+      "assets": "ASSETS",
+      "assets_empty": "No loaded blocks"
+    },
+    "statusbar": {
+      "ready": "Ready",
+      "fps": "FPS",
+      "tech_stack": "BUN + TAURI + PREACT"
+    },
+    "ai_console": {
+      "title": "AI Console (MCP)",
+      "welcome": "Welcome to FragmentCAD. How can I help you today?",
+      "placeholder": "Type a command or question...",
+      "send": "Send",
+      "mock_response": "Understood. Parsing command: \"{{input}}\". (MCP Connection Pending)"
+    }
+  },
+  "core": {
+    "errors": {
+      "layer_locked": "Layer is locked",
+      "geom_invalid": "Invalid geometry"
+    }
+  }
+}
