@@ -1,7 +1,7 @@
 use bevy_ecs::prelude::*;
 use fcad_core::domain::{Geometry, Layer, ColorOverride};
 use fcad_core::domain::math::primitives::Line;
-use fcad_core::infrastructure::ecs::ncs::NcsDictionary;
+use fcad_core::infrastructure::ecs::ncs::LayerStandards;
 use std::collections::HashMap;
 
 #[repr(C)]
@@ -26,17 +26,17 @@ pub struct RenderOptimizer {
     // Tracking interno de lo que se debe subir a VRAM este frame
     pub dirty_ranges: Vec<usize>,
 
-    pub ncs_dict: NcsDictionary,
+    pub ncs_dict: LayerStandards,
 }
 
 impl Default for RenderOptimizer {
     fn default() -> Self {
-        Self::new(NcsDictionary::new())
+        Self::new(LayerStandards::new())
     }
 }
 
 impl RenderOptimizer {
-    pub fn new(ncs_dict: NcsDictionary) -> Self {
+    pub fn new(ncs_dict: LayerStandards) -> Self {
         Self {
             entity_to_index: HashMap::new(),
             instances: Vec::new(),
@@ -141,7 +141,7 @@ mod tests {
     #[test]
     fn test_differential_sync_optimizer() {
         let mut world = World::new();
-        let mut optimizer = RenderOptimizer::new(NcsDictionary::new());
+        let mut optimizer = RenderOptimizer::new(LayerStandards::new());
 
         // Inicializamos 10,000 líneas estáticas simuladas
         for i in 0..10_000 {

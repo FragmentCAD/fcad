@@ -438,10 +438,10 @@ where
 {
     std::thread::spawn(move || {
         let ncs_yaml = include_str!("../../fcad-assets/standards/layers/ncs_layers_A.yaml");
-        let ncs_dict = fcad_core::infrastructure::ecs::ncs::NcsDictionary::load_from_yaml(ncs_yaml)
-            .unwrap_or_else(|_| fcad_core::infrastructure::ecs::ncs::NcsDictionary::new());
+        let mut ncs_standards = fcad_core::infrastructure::ecs::ncs::LayerStandards::new();
+        let _ = ncs_standards.load_from_yaml(ncs_yaml);
             
-        let mut optimizer = optimizer::RenderOptimizer::new(ncs_dict);
+        let mut optimizer = optimizer::RenderOptimizer::new(ncs_standards);
 
         // Insertar líneas asociadas a las capas reales del YAML de arquitectura
         {

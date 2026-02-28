@@ -183,6 +183,27 @@ fn switch_theme(state: tauri::State<'_, AppState>, theme_name: String) -> Result
     Ok(theme)
 }
 
+#[tauri::command]
+fn get_layers(state: tauri::State<'_, AppState>) -> Vec<fcad_core::infrastructure::ecs::ncs::NcsLayerDef> {
+    let world = state.world.lock().unwrap();
+    use fcad_core::infrastructure::ecs::ncs::LayerStandards;
+    
+    if let Some(standards) = world.get_resource::<LayerStandards>() {
+        standards.get_layers_by_discipline("A") // Hardcoded "A" for now per specs
+    } else {
+        Vec::new()
+    }
+}
+
+#[tauri::command]
+fn set_active_layer(state: tauri::State<'_, AppState>, name: String) -> String {
+    let mut world = state.world.lock().unwrap();
+    use fcad_core::infrastructure::ecs::ncs::ActiveLayer;
+    
+    world.insert_resource(ActiveLayer(name.clone()));
+    name
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let (tx, rx) = std::sync::mpsc::channel();
@@ -209,11 +230,34 @@ pub fn run() {
             get_snap_state,
             get_themes_list,
             switch_theme,
+            get_layers,
+            set_active_layer,
         ])
         .setup(move |app| {
             let main_window = Arc::new(app.get_webview_window("main").unwrap());
             let size = main_window.inner_size().unwrap_or(tauri::PhysicalSize::new(800, 600));
+
+            // --- Inicialización de Capas (NCS) ---
+            let ncs_path = std::path::Path::new("..").join("..").join("fcad-assets").join("ncs").join("ncs_layers_A.yaml");
+            let mut world_guard = world.lock().unwrap();
             
+            use fcad_core::infrastructure::ecs::ncs::{LayerStandards, ActiveLayer};
+            let mut standards = LayerStandards::new();
+            if let Ok(content) = std::fs::read_to_string(ncs_path) {
+                if let Err(e) = standards.load_from_yaml(&content) {
+                    eprintln!("Error al cargar catálogo NCS: {}", e);
+                } else {
+                    println!("Catálogo NCS cargado: {} capas registradas.", standards.catalog.len());
+                }
+            } else {
+                eprintln!("AVISO: No se encontró catálogo NCS inicial.");
+            }
+            
+            world_guard.insert_resource(standards);
+            world_guard.insert_resource(ActiveLayer::default());
+            drop(world_guard);
+            // ------------------------------------
+
             // Detección automática de tema basado en el sistema operativo
             let theme = match main_window.theme().unwrap_or(tauri::Theme::Dark) {
                 tauri::Theme::Light => fcad_core::domain::theme::Theme::architect(),
