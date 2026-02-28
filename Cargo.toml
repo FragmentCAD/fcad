@@ -1,0 +1,20 @@
+[package]
+name = "fcad-renderer"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+bevy_ecs = "0.13"
+bytemuck = { version = "1.25.0", features = ["derive"] }
+fcad-core = { version = "0.1.0", path = "../fcad-core" }
+glam = "0.32.0"
+lyon = "1.0.16"
+wgpu = "28.0.0"
+raw-window-handle = "0.6"
+pollster = "0.4.0"
+
+[dev-dependencies]
+env_logger = "0.11.9"
+log = "0.4.29"
+wgpu-profiler = "0.26.0"
+winit = "0.30.12"
