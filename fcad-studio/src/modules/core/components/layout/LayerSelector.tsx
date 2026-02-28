@@ -1,11 +1,14 @@
 import { useLayers, LayerDef } from "@/modules/core/contexts/LayerContext";
 
 export function LayerSelector() {
-    const { activeLayer, availableLayers, isLoading, setActiveLayer } = useLayers();
+    const { activeLayer, availableLayers, adaptedLayers, isLoading, setActiveLayer } = useLayers();
 
     if (isLoading.value) {
         return <div className="text-muted-foreground text-xs animate-pulse px-2">Loading layers...</div>;
     }
+
+    // Use adapted layer color for the indicator dot
+    const activeAdaptedColor = adaptedLayers.value.find(l => l.name === activeLayer.value)?.color_hex || '#FFFFFF';
 
     return (
         <div className="bg-background/50 flex items-center gap-2 rounded-md border p-1 shadow-sm">
@@ -23,12 +26,10 @@ export function LayerSelector() {
                 ))}
             </select>
 
-            {/* Indicador de color de capa */}
+            {/* Indicador de color de capa (theme-adapted) */}
             <div
                 className="h-3 w-3 rounded-full border border-white/10"
-                style={{
-                    backgroundColor: availableLayers.value.find(l => l.name === activeLayer.value)?.color_hex || '#FFFFFF'
-                }}
+                style={{ backgroundColor: activeAdaptedColor }}
             />
         </div>
     );
