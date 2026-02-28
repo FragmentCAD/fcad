@@ -3,7 +3,6 @@ import "./App.css";
 import "./modules/core/lib/i18n";
 import App from "./App";
 import { invoke } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 
@@ -41,27 +40,17 @@ function applyThemeToCSS(theme: Theme) {
 
 async function bootstrap() {
     try {
-        // Wait for the backend to signal readiness
-        const readyPromise = new Promise<void>((resolve) => {
-            listen("app-ready", () => resolve());
-            // Timeout fallback: if app-ready never fires, proceed anyway after 10s
-            setTimeout(resolve, 10000);
-        });
-
-        await readyPromise;
-
-        // Sync theme from backend before any rendering
+        // Sync theme from backend — this command is always available once Tauri is ready
         const theme = await invoke<Theme>("get_current_theme");
         applyThemeToCSS(theme);
 
         // Store theme for ThemeContext to pick up
         (window as any).__INITIAL_THEME__ = theme;
-
     } catch (err) {
-        console.error("Bootstrap error:", err);
+        console.error("Bootstrap: failed to get theme, using defaults:", err);
     }
 
-    // Render the app (theme is now applied to CSS)
+    // Render the app (theme is now applied to CSS variables)
     render(<App />, document.getElementById("root")!);
 
     // Close splashscreen and show main window
@@ -70,11 +59,17 @@ async function bootstrap() {
         if (splashscreen) {
             await splashscreen.close();
         }
+    } catch (err) {
+        // Splashscreen may not exist in some environments
+        console.warn("Splashscreen close:", err);
+    }
+
+    try {
         const mainWindow = getCurrentWindow();
         await mainWindow.show();
         await mainWindow.setFocus();
     } catch (err) {
-        console.error("Failed to close splashscreen:", err);
+        console.error("Failed to show main window:", err);
     }
 }
 

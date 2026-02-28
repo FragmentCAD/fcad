@@ -16,6 +16,9 @@
         "title": "FragmentCAD Studio",
         "width": 1280,
         "height": 720,
+        "minWidth": 800,
+        "minHeight": 600,
+        "center": true,
         "transparent": true,
         "visible": false
       },

@@ -1,4 +1,4 @@
-use tauri::{Manager, Emitter};
+use tauri::Manager;
 use std::sync::{Arc, Mutex};
 use fcad_core::infrastructure::ecs::spatial::SpatialIndex;
 use fcad_core::application::tools::ToolManager;
@@ -322,14 +322,7 @@ pub fn run() {
 
             fcad_renderer::spawn_render_thread(main_window, size.width, size.height, world, rx);
 
-            // Emit app-ready event — frontend will close splash and show main window
-            let app_handle = app.handle().clone();
-            std::thread::spawn(move || {
-                // Small delay to ensure render thread has initialized
-                std::thread::sleep(std::time::Duration::from_millis(500));
-                let _ = app_handle.emit("app-ready", ());
-                println!("FragmentCAD: app-ready event emitted.");
-            });
+            println!("FragmentCAD: Setup complete. Waiting for frontend bootstrap.");
 
             Ok(())
         })
