@@ -207,6 +207,25 @@ fn get_layers(state: tauri::State<'_, AppState>) -> Vec<fcad_core::infrastructur
 }
 
 #[tauri::command]
+fn get_adapted_layers(state: tauri::State<'_, AppState>) -> Vec<fcad_core::infrastructure::ecs::ncs::NcsLayerDef> {
+    let world = state.world.lock().unwrap();
+    let theme = state.current_theme.lock().unwrap().clone();
+    use fcad_core::infrastructure::ecs::ncs::LayerStandards;
+    
+    if let Some(standards) = world.get_resource::<LayerStandards>() {
+        standards.get_layers_by_discipline("A")
+            .into_iter()
+            .map(|mut layer| {
+                layer.color_hex = theme.adapt_layer_color(&layer.color_hex);
+                layer
+            })
+            .collect()
+    } else {
+        Vec::new()
+    }
+}
+
+#[tauri::command]
 fn set_active_layer(state: tauri::State<'_, AppState>, name: String) -> String {
     let mut world = state.world.lock().unwrap();
     use fcad_core::infrastructure::ecs::ncs::ActiveLayer;
@@ -244,6 +263,7 @@ pub fn run() {
             get_themes_list,
             switch_theme,
             get_layers,
+            get_adapted_layers,
             set_active_layer,
         ])
         .setup(move |app| {

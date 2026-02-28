@@ -13,11 +13,24 @@ export interface LayerDef {
 
 const activeLayer = signal<string>('0');
 const availableLayers = signal<LayerDef[]>([]);
+/** Layers with color_hex adapted for the current theme */
+const adaptedLayers = signal<LayerDef[]>([]);
 const isLoading = signal<boolean>(true);
+
+/** Fetches layers with colors adapted for the active theme */
+async function refreshAdaptedLayers() {
+    try {
+        const layers = await invoke<LayerDef[]>('get_adapted_layers');
+        adaptedLayers.value = layers;
+    } catch (error) {
+        console.error('Failed to load adapted layers:', error);
+    }
+}
 
 const LayerContext = createContext({
     activeLayer,
     availableLayers,
+    adaptedLayers,
     isLoading,
     setActiveLayer: async (name: string) => {
         const result = await invoke<string>('set_active_layer', { name });
@@ -28,12 +41,15 @@ const LayerContext = createContext({
         try {
             const layers = await invoke<LayerDef[]>('get_layers');
             availableLayers.value = layers;
+            // Also fetch theme-adapted colors
+            await refreshAdaptedLayers();
         } catch (error) {
             console.error('Failed to load layers:', error);
         } finally {
             isLoading.value = false;
         }
-    }
+    },
+    refreshAdaptedLayers,
 });
 
 export const LayerProvider = ({ children }: { children: any }) => {
