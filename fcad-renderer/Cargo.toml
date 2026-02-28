@@ -4,14 +4,14 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-bevy_ecs = "0.13"
-bytemuck = { version = "1.25.0", features = ["derive"] }
-fcad-core = { version = "0.1.0", path = "../fcad-core" }
-glam = "0.32.0"
-lyon = "1.0.16"
-wgpu = "28.0.0"
-raw-window-handle = "0.6"
-pollster = "0.4.0"
+bevy_ecs = { workspace = true }
+bytemuck = { workspace = true }
+fcad-core = { workspace = true }
+glam = { workspace = true }
+lyon = { workspace = true }
+wgpu = { workspace = true }
+raw-window-handle = { workspace = true }
+pollster = { workspace = true }
 
 [dev-dependencies]
 env_logger = "0.11.9"

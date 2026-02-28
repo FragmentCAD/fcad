@@ -12,7 +12,7 @@ Este documento define las reglas de juego estrictas para cualquier Agente de IA 
 *   **Framework:** `Preact` (No React). Usar `preact/signals` para el estado global y local. Evitar `useState`/`useEffect` si un Signal lo resuelve mejor.
 *   **Build System:** `Vite` + `Tauri v2`.
 *   **Estilos:** `TailwindCSS v4`. No escribir CSS puro ni módulos CSS. Usar clases utilitarias.
-*   **Componentes:** `shadcn/ui` (basado en `@radix-ui` primitivos).
+*   **Componentes:** `shadcn/ui` (basado en `@radix-ui` primitivos). **REGLA ESTRICTA:** Está prohibido reinventar la rueda o construir componentes visuales comunes (botones, modales, menús, acordeones) desde cero. Tu deber es importar y personalizar los componentes base de shadcn/ui.
 
 ## 2. Arquitectura de Carpetas (Screaming Architecture)
 

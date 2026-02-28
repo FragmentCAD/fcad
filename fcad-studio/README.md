@@ -25,7 +25,7 @@ El proyecto emplea las siguientes herramientas modernas:
 - **Bun** como motor de ejecución JS/TS y gestor de paquetes de alta velocidad.
 - **Vite** para HMR (Hot Module Replacement) instantáneo.
 - **Preact** por su ligereza y compatibilidad con el ecosistema de React.
-- **Tailwind CSS + Radix UI (Shadcn UI)** para el sistema de diseño estructurado.
+- **Tailwind CSS + shadcn/ui:** Mantenemos la filosofía de NO reinventar componentes comunes (modales, popovers, botones). Importamos los componentes base de shadcn y los personalizamos con utilidades de Tailwind.
 - **Prettier** con `prettier-plugin-tailwindcss` para mantener todo el código formato.
 
 ### Prerequisitos
