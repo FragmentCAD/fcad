@@ -61,4 +61,27 @@ layers:
         let active = ActiveLayer::default();
         assert_eq!(active.0, "0"); // Capa por defecto es "0"
     }
+
+    #[test]
+    fn test_auto_assign_active_layer() {
+        use bevy_ecs::prelude::*;
+        use crate::domain::Geometry;
+        use crate::domain::math::primitives::Point2D;
+        use crate::infrastructure::ecs::ncs::{ActiveLayer, assign_active_layer_system};
+        
+        let mut world = World::new();
+        world.insert_resource(ActiveLayer("A-WALL".to_string()));
+        
+        // Spawn entity without Layer
+        let entity = world.spawn(Geometry::Point(Point2D::new(0.0, 0.0))).id();
+        
+        // Run system
+        let mut schedule = Schedule::default();
+        schedule.add_systems(assign_active_layer_system);
+        schedule.run(&mut world);
+        
+        // Assert
+        let layer = world.get::<crate::domain::Layer>(entity).expect("Layer was not assigned");
+        assert_eq!(layer.0, "A-WALL");
+    }
 }
