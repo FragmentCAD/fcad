@@ -79,3 +79,16 @@ impl LayerStandards {
             .unwrap_or([1.0, 1.0, 1.0, 1.0])
     }
 }
+
+/// Sistema ECS que detecta entidades nuevas (con geometría) que NO tienen capa,
+/// y les asigna la capa activa actualmente.
+pub fn assign_active_layer_system(
+    mut commands: Commands,
+    active_layer: Res<ActiveLayer>,
+    // Usamos Changed o Added para detectar nuevas geometrías
+    query: Query<Entity, (With<crate::domain::Geometry>, Without<crate::domain::Layer>)>,
+) {
+    for entity in query.iter() {
+        commands.entity(entity).insert(crate::domain::Layer(active_layer.0.clone()));
+    }
+}
