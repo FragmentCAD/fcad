@@ -1,4 +1,4 @@
-use tauri::Manager;
+use tauri::{Manager, Emitter};
 use std::sync::{Arc, Mutex};
 use fcad_core::infrastructure::ecs::spatial::SpatialIndex;
 use fcad_core::application::tools::ToolManager;
@@ -12,6 +12,7 @@ struct AppState {
     tool_manager: Mutex<ToolManager>,
     world: Arc<Mutex<bevy_ecs::world::World>>,
     zoom: Mutex<f32>,
+    current_theme: Mutex<fcad_core::domain::theme::Theme>,
 }
 
 #[tauri::command]
@@ -150,6 +151,11 @@ fn send_tool_click(window: tauri::Window, state: tauri::State<'_, AppState>, but
 }
 
 #[tauri::command]
+fn get_current_theme(state: tauri::State<'_, AppState>) -> fcad_core::domain::theme::Theme {
+    state.current_theme.lock().unwrap().clone()
+}
+
+#[tauri::command]
 fn get_themes_list() -> Vec<String> {
     let themes_dir = std::path::Path::new("..").join("..").join("fcad-assets").join("themes");
     let mut themes = Vec::new();
@@ -175,6 +181,11 @@ fn switch_theme(state: tauri::State<'_, AppState>, theme_name: String) -> Result
     
     let theme: fcad_core::domain::theme::Theme = serde_json::from_str(&content)
         .map_err(|e| format!("Error al parsear el tema '{}': {}", theme_name, e))?;
+    
+    // Update stored theme in AppState
+    if let Ok(mut current) = state.current_theme.lock() {
+        *current = theme.clone();
+    }
     
     if let Ok(tx) = state.render_tx.lock() {
         let _ = tx.send(fcad_renderer::RenderMessage::UpdateTheme(theme.clone()));
@@ -216,6 +227,7 @@ pub fn run() {
             tool_manager: Mutex::new(ToolManager::new()),
             world: world.clone(),
             zoom: Mutex::new(1.0),
+            current_theme: Mutex::new(fcad_core::domain::theme::Theme::default()),
         })
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
@@ -228,6 +240,7 @@ pub fn run() {
             send_tool_click,
             toggle_grid_snap,
             get_snap_state,
+            get_current_theme,
             get_themes_list,
             switch_theme,
             get_layers,
@@ -269,6 +282,13 @@ pub fn run() {
                      main_window.theme().unwrap_or(tauri::Theme::Dark), 
                      theme.name);
 
+            // Persist detected theme in AppState for get_current_theme
+            if let Some(state) = app.try_state::<AppState>() {
+                if let Ok(mut current) = state.current_theme.lock() {
+                    *current = theme.clone();
+                }
+            }
+
             let tx_clone = tx.clone();
             
             // Enviar tema inicial al renderer
@@ -281,6 +301,16 @@ pub fn run() {
             });
 
             fcad_renderer::spawn_render_thread(main_window, size.width, size.height, world, rx);
+
+            // Emit app-ready event — frontend will close splash and show main window
+            let app_handle = app.handle().clone();
+            std::thread::spawn(move || {
+                // Small delay to ensure render thread has initialized
+                std::thread::sleep(std::time::Duration::from_millis(500));
+                let _ = app_handle.emit("app-ready", ());
+                println!("FragmentCAD: app-ready event emitted.");
+            });
+
             Ok(())
         })
         .run(tauri::generate_context!())

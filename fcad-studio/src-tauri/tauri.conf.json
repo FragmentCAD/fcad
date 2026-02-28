@@ -12,17 +12,29 @@
   "app": {
     "windows": [
       {
+        "label": "main",
         "title": "FragmentCAD Studio",
         "width": 1280,
         "height": 720,
-        "transparent": true
+        "transparent": true,
+        "visible": false
+      },
+      {
+        "label": "splashscreen",
+        "title": "FragmentCAD",
+        "url": "splashscreen.html",
+        "width": 420,
+        "height": 280,
+        "decorations": false,
+        "transparent": true,
+        "center": true,
+        "resizable": false,
+        "alwaysOnTop": true
       }
     ],
-
     "security": {
       "csp": "default-src 'self'; img-src 'self' asset: https://asset.localhost; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self' ipc: http://localhost:* ws://localhost:*"
     }
-
   },
   "bundle": {
     "active": true,
@@ -35,5 +47,4 @@
       "icons/icon.ico"
     ]
   }
-
 }
