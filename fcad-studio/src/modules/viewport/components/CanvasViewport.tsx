@@ -127,6 +127,21 @@ export function CanvasViewport({ onHitTested }: CanvasViewportProps) {
     el.addEventListener("click", handleClick);
     el.addEventListener("contextmenu", handleContextMenu);
 
+    // ── Keyboard Shortcuts (F3: Osnap, F7: Grid, F8: Ortho) ──
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "F3") {
+        e.preventDefault();
+        invoke("toggle_osnaps").catch(console.error);
+      } else if (e.key === "F7") {
+        e.preventDefault();
+        invoke("toggle_grid_snap").catch(console.error);
+      } else if (e.key === "F8") {
+        e.preventDefault();
+        invoke("toggle_ortho").catch(console.error);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+
     return () => {
       cancelAnimationFrame(rafId);
       el.removeEventListener("wheel", handleWheel);
@@ -135,6 +150,7 @@ export function CanvasViewport({ onHitTested }: CanvasViewportProps) {
       el.removeEventListener("pointerup", handlePointerUp);
       el.removeEventListener("click", handleClick);
       el.removeEventListener("contextmenu", handleContextMenu);
+      window.removeEventListener("keydown", handleKeyDown);
     };
   }, []);
 

@@ -1,14 +1,44 @@
 use tauri::Manager;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use fcad_core::infrastructure::ecs::spatial::SpatialIndex;
 use fcad_core::application::tools::ToolManager;
 use fcad_core::application::tools::space_tool::SpaceTool;
+use fcad_core::application::snap::{SnapState, WorldGeometryProvider};
 
 // Estado global para la aplicación
 struct AppState {
     spatial_index: Mutex<SpatialIndex>,
     render_tx: Mutex<std::sync::mpsc::Sender<fcad_renderer::RenderMessage>>,
     tool_manager: Mutex<ToolManager>,
+    world: Arc<Mutex<bevy_ecs::world::World>>,
+    zoom: Mutex<f32>,
+}
+
+#[tauri::command]
+fn get_snap_state(state: tauri::State<'_, AppState>) -> SnapState {
+    let tm = state.tool_manager.lock().unwrap();
+    tm.snap_engine.state
+}
+
+#[tauri::command]
+fn toggle_ortho(state: tauri::State<'_, AppState>) -> bool {
+    let mut tm = state.tool_manager.lock().unwrap();
+    tm.snap_engine.state.ortho_enabled = !tm.snap_engine.state.ortho_enabled;
+    tm.snap_engine.state.ortho_enabled
+}
+
+#[tauri::command]
+fn toggle_osnaps(state: tauri::State<'_, AppState>) -> bool {
+    let mut tm = state.tool_manager.lock().unwrap();
+    tm.snap_engine.state.osnaps_enabled = !tm.snap_engine.state.osnaps_enabled;
+    tm.snap_engine.state.osnaps_enabled
+}
+
+#[tauri::command]
+fn toggle_grid_snap(state: tauri::State<'_, AppState>) -> bool {
+    let mut tm = state.tool_manager.lock().unwrap();
+    tm.snap_engine.state.grid_snap_enabled = !tm.snap_engine.state.grid_snap_enabled;
+    tm.snap_engine.state.grid_snap_enabled
 }
 
 #[tauri::command]
@@ -48,6 +78,9 @@ fn send_camera_zoom(state: tauri::State<'_, AppState>, factor: f32, anchor_x: f3
             anchor_y,
         });
     }
+    // Sincronizar zoom en el estado para el SnapEngine
+    let mut z = state.zoom.lock().unwrap();
+    *z = (*z * factor).clamp(0.001, 100_000.0);
 }
 
 /// Comando IPC para Pan de cámara (enviado desde React middle-drag).
@@ -94,24 +127,29 @@ fn send_tool_click(state: tauri::State<'_, AppState>, button: String, x: f32, y:
         _ => MouseButton::Left,
     };
     let event = InputEvent::Click { button: btn, x, y };
+
     let mut tm = state.tool_manager.lock().unwrap();
-    let response = tm.process_input(&event);
+    let index = state.spatial_index.lock().unwrap();
+    let world = state.world.lock().unwrap();
+    let zoom = state.zoom.lock().unwrap();
+    
+    let provider = WorldGeometryProvider { world: &world };
+    let response = tm.process_input(&event, &index, &provider, *zoom);
     format!("{:?}", response)
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    // Inicializamos un índice espacial con una línea de prueba (mock)
-    let mock_index = SpatialIndex::new();
-    println!("Initializing SpatialIndex with MVP Mock data...");
-    
     let (tx, rx) = std::sync::mpsc::channel();
+    let world = Arc::new(Mutex::new(bevy_ecs::world::World::new()));
     
     tauri::Builder::default()
         .manage(AppState {
-            spatial_index: Mutex::new(mock_index),
+            spatial_index: Mutex::new(SpatialIndex::new()),
             render_tx: Mutex::new(tx.clone()),
             tool_manager: Mutex::new(ToolManager::new()),
+            world: world.clone(),
+            zoom: Mutex::new(1.0),
         })
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
@@ -122,11 +160,13 @@ pub fn run() {
             set_active_tool,
             get_active_tool,
             send_tool_click,
+            toggle_ortho,
+            toggle_osnaps,
+            toggle_grid_snap,
+            get_snap_state,
         ])
         .setup(move |app| {
-            let main_window = std::sync::Arc::new(app.get_webview_window("main").unwrap());
-            
-            // Pasamos un tamaño arbitrario o el actual
+            let main_window = Arc::new(app.get_webview_window("main").unwrap());
             let size = main_window.inner_size().unwrap_or(tauri::PhysicalSize::new(800, 600));
             
             let tx_clone = tx.clone();
@@ -136,7 +176,7 @@ pub fn run() {
                 }
             });
 
-            fcad_renderer::spawn_render_thread(main_window, size.width, size.height, rx);
+            fcad_renderer::spawn_render_thread(main_window, size.width, size.height, world, rx);
             Ok(())
         })
         .run(tauri::generate_context!())

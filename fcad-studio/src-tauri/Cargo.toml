@@ -21,6 +21,7 @@ serde_json = { workspace = true }
 fcad-core = { workspace = true }
 fcad-renderer = { workspace = true }
 # Para obtener el handle de ventana nativo
+bevy_ecs = { workspace = true }
 raw-window-handle = { workspace = true }
 
 
