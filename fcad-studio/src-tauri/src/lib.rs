@@ -149,6 +149,40 @@ fn send_tool_click(window: tauri::Window, state: tauri::State<'_, AppState>, but
     format!("{:?}", response)
 }
 
+#[tauri::command]
+fn get_themes_list() -> Vec<String> {
+    let themes_dir = std::path::Path::new("..").join("..").join("fcad-assets").join("themes");
+    let mut themes = Vec::new();
+    
+    if let Ok(entries) = std::fs::read_dir(themes_dir) {
+        for entry in entries.flatten() {
+            if let Some(name) = entry.file_name().to_str() {
+                if name.ends_with(".json") {
+                    themes.push(name.replace(".json", ""));
+                }
+            }
+        }
+    }
+    themes
+}
+
+#[tauri::command]
+fn switch_theme(state: tauri::State<'_, AppState>, theme_name: String) -> Result<fcad_core::domain::theme::Theme, String> {
+    let theme_path = std::path::Path::new("..").join("..").join("fcad-assets").join("themes").join(format!("{}.json", theme_name));
+    
+    let content = std::fs::read_to_string(&theme_path)
+        .map_err(|e| format!("No se pudo leer el tema '{}': {}", theme_name, e))?;
+    
+    let theme: fcad_core::domain::theme::Theme = serde_json::from_str(&content)
+        .map_err(|e| format!("Error al parsear el tema '{}': {}", theme_name, e))?;
+    
+    if let Ok(tx) = state.render_tx.lock() {
+        let _ = tx.send(fcad_renderer::RenderMessage::UpdateTheme(theme.clone()));
+    }
+    
+    Ok(theme)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let (tx, rx) = std::sync::mpsc::channel();
@@ -171,16 +205,31 @@ pub fn run() {
             set_active_tool,
             get_active_tool,
             send_tool_click,
-            toggle_ortho,
-            toggle_osnaps,
             toggle_grid_snap,
             get_snap_state,
+            get_themes_list,
+            switch_theme,
         ])
         .setup(move |app| {
             let main_window = Arc::new(app.get_webview_window("main").unwrap());
             let size = main_window.inner_size().unwrap_or(tauri::PhysicalSize::new(800, 600));
             
+            // Detección automática de tema basado en el sistema operativo
+            let theme = match main_window.theme().unwrap_or(tauri::Theme::Dark) {
+                tauri::Theme::Light => fcad_core::domain::theme::Theme::architect(),
+                tauri::Theme::Dark => fcad_core::domain::theme::Theme::midnight(),
+                _ => fcad_core::domain::theme::Theme::midnight(),
+            };
+            
+            println!("FragmentCAD: Sistema detectado en modo {:?}. Aplicando tema: {}", 
+                     main_window.theme().unwrap_or(tauri::Theme::Dark), 
+                     theme.name);
+
             let tx_clone = tx.clone();
+            
+            // Enviar tema inicial al renderer
+            let _ = tx_clone.send(fcad_renderer::RenderMessage::UpdateTheme(theme));
+
             main_window.on_window_event(move |event| {
                 if let tauri::WindowEvent::Resized(size) = event {
                     let _ = tx_clone.send(fcad_renderer::RenderMessage::WindowResize(size.width, size.height));

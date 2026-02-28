@@ -1,0 +1,10 @@
+{
+    "name": "Architect",
+    "background": "#FDFDFB",
+    "foreground": "#1A202C",
+    "primary": "#2D3748",
+    "accent": "#CBD5E0",
+    "grid_major": "#E2E8F0",
+    "grid_minor": "#EDF2F7",
+    "selection": "#4A5568"
+}

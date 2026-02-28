@@ -58,6 +58,8 @@ pub enum RenderMessage {
     CameraZoom { factor: f32, anchor_x: f32, anchor_y: f32 },
     /// Pan de la cámara: delta en píxeles de pantalla.
     CameraPan { dx: f32, dy: f32 },
+    /// Actualización del tema visual
+    UpdateTheme(fcad_core::domain::theme::Theme),
 }
 
 pub struct Renderer<'window> {
@@ -75,6 +77,8 @@ pub struct Renderer<'window> {
     pub grid_vertex_buffer: wgpu::Buffer,
     pub grid_index_buffer: wgpu::Buffer,
     pub num_grid_indices: u32,
+    // Theme
+    pub active_theme: fcad_core::domain::theme::Theme,
 }
 
 impl<'window> Renderer<'window> {
@@ -307,7 +311,12 @@ impl<'window> Renderer<'window> {
             grid_vertex_buffer,
             grid_index_buffer,
             num_grid_indices: 0,
+            active_theme: fcad_core::domain::theme::Theme::default(),
         }
+    }
+
+    pub fn update_theme(&mut self, theme: fcad_core::domain::theme::Theme) {
+        self.active_theme = theme;
     }
 
     pub fn resize(&mut self, width: u32, height: u32) {
@@ -366,11 +375,13 @@ impl<'window> Renderer<'window> {
                     view: &view,
                     resolve_target: None,
                     ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color {
-                            r: 0.1,
-                            g: 0.1,
-                            b: 0.1,
-                            a: 1.0,
+                        load: wgpu::LoadOp::Clear({
+                            let c = &self.active_theme.background;
+                            // Parse hex color (simplificado, asumiendo #RRGGBB)
+                            let r = u8::from_str_radix(&c[1..3], 16).unwrap_or(0) as f64 / 255.0;
+                            let g = u8::from_str_radix(&c[3..5], 16).unwrap_or(0) as f64 / 255.0;
+                            let b = u8::from_str_radix(&c[5..7], 16).unwrap_or(0) as f64 / 255.0;
+                            wgpu::Color { r, g, b, a: 1.0 }
                         }),
                         store: wgpu::StoreOp::Store,
                     },
@@ -517,6 +528,10 @@ where
                     RenderMessage::CameraPan { dx, dy } => {
                         cam.pan(dx, dy);
                         camera_dirty = true;
+                    }
+                    RenderMessage::UpdateTheme(theme) => {
+                        renderer.update_theme(theme);
+                        // No necesitamos marcar camera_dirty pero forzamos un redraw si fuera necesario.
                     }
                 }
             }
