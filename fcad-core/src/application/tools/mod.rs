@@ -1,6 +1,8 @@
 pub mod space_tool;
 
 use super::input::InputEvent;
+use super::snap::{SnapEngine, SnapResult, GeometryProvider, SnapType};
+use crate::infrastructure::ecs::spatial::SpatialIndex;
 
 /// Respuesta que una herramienta devuelve al ToolManager tras procesar un evento.
 #[derive(Debug, Clone, PartialEq)]
@@ -46,11 +48,17 @@ pub trait Tool: Send + Sync {
 /// Decide si un evento es de navegación (cámara) o de herramienta.
 pub struct ToolManager {
     active_tool: Option<Box<dyn Tool>>,
+    pub snap_engine: SnapEngine,
+    last_clicked_point: Option<[f32; 2]>,
 }
 
 impl ToolManager {
     pub fn new() -> Self {
-        Self { active_tool: None }
+        Self {
+            active_tool: None,
+            snap_engine: SnapEngine::new(),
+            last_clicked_point: None,
+        }
     }
 
     /// Establece la herramienta activa. Cancela la anterior si existe.
@@ -69,6 +77,7 @@ impl ToolManager {
             t.on_cancel();
         }
         self.active_tool = None;
+        self.last_clicked_point = None;
     }
 
     /// Devuelve el nombre de la herramienta activa, si hay alguna.
@@ -77,10 +86,13 @@ impl ToolManager {
     }
 
     /// Procesa un evento de entrada.
-    /// - Si es un evento de navegación, devuelve `NavigationEvent` para que el caller actualice la cámara.
-    /// - Si hay herramienta activa, le delega el evento.
-    /// - Si no hay herramienta ni navegación, lo ignora.
-    pub fn process_input(&mut self, event: &InputEvent) -> ToolManagerResponse {
+    pub fn process_input(
+        &mut self,
+        event: &InputEvent,
+        spatial_index: &SpatialIndex,
+        provider: &impl GeometryProvider,
+        zoom_level: f32,
+    ) -> ToolManagerResponse {
         // Prioridad 1: Navegación (siempre funciona, incluso con herramienta activa)
         if event.is_navigation() {
             return ToolManagerResponse::Navigation(event.clone());
@@ -88,8 +100,34 @@ impl ToolManager {
 
         // Prioridad 2: Herramienta activa
         if let Some(ref mut tool) = self.active_tool {
-            let response = tool.on_input(event);
-            return ToolManagerResponse::Tool(response);
+            let mut event_to_process = event.clone();
+            let mut snap_result = None;
+
+            // Interceptamos y aplicamos Snap a eventos con coordenadas
+            match &mut event_to_process {
+                InputEvent::PointerMove { x, y } | InputEvent::Click { x, y, .. } => {
+                    let snap = self.snap_engine.snap_coordinate(*x, *y, self.last_clicked_point, spatial_index, provider, zoom_level);
+                    *x = snap.point[0];
+                    *y = snap.point[1];
+                    if snap.snap_type != SnapType::None {
+                        snap_result = Some(snap);
+                    }
+                }
+                _ => {}
+            }
+
+            let response = tool.on_input(&event_to_process);
+            
+            // Si fue un Click exitoso, actualizamos el punto de referencia para Ortho
+            if let InputEvent::Click { button, x, y } = &event_to_process {
+                if *button == crate::application::input::MouseButton::Left {
+                    self.last_clicked_point = Some([*x, *y]);
+                } else if *button == crate::application::input::MouseButton::Right {
+                    self.last_clicked_point = None;
+                }
+            }
+
+            return ToolManagerResponse::Tool(response, snap_result);
         }
 
         // Sin herramienta ni navegación
@@ -102,8 +140,8 @@ impl ToolManager {
 pub enum ToolManagerResponse {
     /// El evento es de navegación. El caller debe actualizar la cámara.
     Navigation(InputEvent),
-    /// El evento fue procesado por la herramienta activa.
-    Tool(ToolResponse),
+    /// El evento fue procesado por la herramienta activa. Contiene también el resultado del Snap para feedback visual.
+    Tool(ToolResponse, Option<SnapResult>),
     /// Nadie procesó el evento.
     Unhandled,
 }
@@ -111,6 +149,8 @@ pub enum ToolManagerResponse {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use bevy_ecs::entity::Entity;
+    use crate::domain::Geometry;
     use crate::application::input::{InputEvent, MouseButton};
 
     // Mock Tool para testing
@@ -149,6 +189,12 @@ mod tests {
         }
     }
 
+    // Mock de GeometryProvider para tests
+    struct DummyProvider;
+    impl GeometryProvider for DummyProvider {
+        fn get_geometry(&self, _entity: Entity) -> Option<Geometry> { None }
+    }
+
     #[test]
     fn test_tool_manager_starts_empty() {
         let tm = ToolManager::new();
@@ -174,13 +220,15 @@ mod tests {
     fn test_scroll_always_returns_navigation() {
         let mut tm = ToolManager::new();
         tm.set_tool(Box::new(MockTool::new()));
+        let si = SpatialIndex::new();
+        let dp = DummyProvider;
 
         let scroll = InputEvent::Scroll {
             delta_y: 1.0,
             anchor_x: 100.0,
             anchor_y: 200.0,
         };
-        let response = tm.process_input(&scroll);
+        let response = tm.process_input(&scroll, &si, &dp, 1.0);
         assert!(matches!(response, ToolManagerResponse::Navigation(_)));
     }
 
@@ -188,13 +236,15 @@ mod tests {
     fn test_middle_drag_always_returns_navigation() {
         let mut tm = ToolManager::new();
         tm.set_tool(Box::new(MockTool::new()));
+        let si = SpatialIndex::new();
+        let dp = DummyProvider;
 
         let drag = InputEvent::PointerDrag {
             button: MouseButton::Middle,
             dx: 10.0,
             dy: 5.0,
         };
-        let response = tm.process_input(&drag);
+        let response = tm.process_input(&drag, &si, &dp, 1.0);
         assert!(matches!(response, ToolManagerResponse::Navigation(_)));
     }
 
@@ -202,29 +252,33 @@ mod tests {
     fn test_left_click_goes_to_tool() {
         let mut tm = ToolManager::new();
         tm.set_tool(Box::new(MockTool::new()));
+        let si = SpatialIndex::new();
+        let dp = DummyProvider;
 
         let click = InputEvent::Click {
             button: MouseButton::Left,
             x: 50.0,
             y: 50.0,
         };
-        let response = tm.process_input(&click);
+        let response = tm.process_input(&click, &si, &dp, 1.0);
         assert!(matches!(
             response,
-            ToolManagerResponse::Tool(ToolResponse::Consumed)
+            ToolManagerResponse::Tool(ToolResponse::Consumed, _)
         ));
     }
 
     #[test]
     fn test_no_tool_returns_unhandled() {
         let mut tm = ToolManager::new();
+        let si = SpatialIndex::new();
+        let dp = DummyProvider;
 
         let click = InputEvent::Click {
             button: MouseButton::Left,
             x: 50.0,
             y: 50.0,
         };
-        let response = tm.process_input(&click);
+        let response = tm.process_input(&click, &si, &dp, 1.0);
         assert!(matches!(response, ToolManagerResponse::Unhandled));
     }
 
