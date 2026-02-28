@@ -3,8 +3,9 @@ use raw_window_handle::{HasDisplayHandle, HasWindowHandle};
 pub mod camera;
 pub mod tessellator;
 pub mod optimizer;
+pub mod grid;
 
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::sync::mpsc::Receiver;
 use wgpu::util::DeviceExt;
 
@@ -69,6 +70,11 @@ pub struct Renderer<'window> {
     pub camera_buffer: wgpu::Buffer,
     pub vertex_buffer: wgpu::Buffer,
     pub num_vertices: u32,
+    // Grid
+    pub grid_pipeline: wgpu::RenderPipeline,
+    pub grid_vertex_buffer: wgpu::Buffer,
+    pub grid_index_buffer: wgpu::Buffer,
+    pub num_grid_indices: u32,
 }
 
 impl<'window> Renderer<'window> {
@@ -195,7 +201,7 @@ impl<'window> Renderer<'window> {
                 compilation_options: wgpu::PipelineCompilationOptions::default(),
                 targets: &[Some(wgpu::ColorTargetState {
                     format: config.format,
-                    blend: Some(wgpu::BlendState::REPLACE),
+                    blend: Some(wgpu::BlendState::ALPHA_BLENDING),
                     write_mask: wgpu::ColorWrites::ALL,
                 })],
             }),
@@ -214,6 +220,35 @@ impl<'window> Renderer<'window> {
                 mask: !0,
                 alpha_to_coverage_enabled: false,
             },
+            multiview_mask: None,
+            cache: None,
+        });
+
+        let grid_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("Grid Pipeline"),
+            layout: Some(&render_pipeline_layout),
+            vertex: wgpu::VertexState {
+                module: &shader,
+                entry_point: Some("vs_main"),
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
+                buffers: &[Vertex::desc()],
+            },
+            fragment: Some(wgpu::FragmentState {
+                module: &shader,
+                entry_point: Some("fs_main"),
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
+                targets: &[Some(wgpu::ColorTargetState {
+                    format: config.format,
+                    blend: Some(wgpu::BlendState::ALPHA_BLENDING),
+                    write_mask: wgpu::ColorWrites::ALL,
+                })],
+            }),
+            primitive: wgpu::PrimitiveState {
+                topology: wgpu::PrimitiveTopology::LineList,
+                ..Default::default()
+            },
+            depth_stencil: None,
+            multisample: wgpu::MultisampleState::default(),
             multiview_mask: None,
             cache: None,
         });
@@ -243,6 +278,21 @@ impl<'window> Renderer<'window> {
             }
         );
 
+        // Buffer inicial para la grilla (vacio por ahora, se llenara en el primer update_camera)
+        let grid_vertex_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Grid Vertex Buffer"),
+            size: 1024 * 1024, // 1MB buffer para lineas de grilla
+            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+
+        let grid_index_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Grid Index Buffer"),
+            size: 1024 * 1024,
+            usage: wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+
         Self {
             surface,
             device,
@@ -253,6 +303,10 @@ impl<'window> Renderer<'window> {
             camera_buffer,
             vertex_buffer,
             num_vertices: vertices.len() as u32,
+            grid_pipeline,
+            grid_vertex_buffer,
+            grid_index_buffer,
+            num_grid_indices: 0,
         }
     }
 
@@ -264,13 +318,22 @@ impl<'window> Renderer<'window> {
         }
     }
 
-    /// Actualiza el uniform buffer de la cámara en la GPU con la nueva matriz.
-    pub fn update_camera(&self, camera: &camera::Camera) {
+    /// Actualiza el uniform buffer de la cámara y regenera la grilla.
+    pub fn update_camera(&mut self, camera: &camera::Camera) {
         let vp = camera.build_view_projection_matrix();
         let uniform = CameraUniform {
             view_proj: vp.to_cols_array_2d(),
         };
         self.queue.write_buffer(&self.camera_buffer, 0, bytemuck::cast_slice(&[uniform]));
+
+        // Regenerar grilla
+        let (grid_verts, grid_indices) = grid::generate_grid_vertices(camera, 10.0);
+        self.num_grid_indices = grid_indices.len() as u32;
+
+        if !grid_verts.is_empty() {
+             self.queue.write_buffer(&self.grid_vertex_buffer, 0, bytemuck::cast_slice(&grid_verts));
+             self.queue.write_buffer(&self.grid_index_buffer, 0, bytemuck::cast_slice(&grid_indices));
+        }
     }
 
     pub fn draw(&mut self, viewport: Option<ViewportRect>) {
@@ -298,7 +361,7 @@ impl<'window> Renderer<'window> {
 
         {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("Clear Pass"),
+                label: Some("Main Render Pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: &view,
                     resolve_target: None,
@@ -321,7 +384,7 @@ impl<'window> Renderer<'window> {
 
             if let Some(mut vp) = viewport {
                 if vp.x > self.config.width { vp.x = self.config.width; vp.width = 0; }
-                if vp.y > self.config.height { vp.y = self.config.height; vp.height = 0; }
+                if vp.y > self.config.height { vp.y = self.config.height; vp.height = 0; } 
                 if vp.x + vp.width > self.config.width { vp.width = self.config.width - vp.x; }
                 if vp.y + vp.height > self.config.height { vp.height = self.config.height - vp.y; }
 
@@ -330,7 +393,16 @@ impl<'window> Renderer<'window> {
                 }
             }
 
-            // Draw Lines
+            // 1. Draw Grid first (behind)
+            if self.num_grid_indices > 0 {
+                render_pass.set_pipeline(&self.grid_pipeline);
+                render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
+                render_pass.set_vertex_buffer(0, self.grid_vertex_buffer.slice(..));
+                render_pass.set_index_buffer(self.grid_index_buffer.slice(..), wgpu::IndexFormat::Uint16);
+                render_pass.draw_indexed(0..self.num_grid_indices, 0, 0..1);
+            }
+
+            // 2. Draw Main Geometry
             render_pass.set_pipeline(&self.render_pipeline);
             render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
             render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
@@ -346,6 +418,7 @@ pub fn spawn_render_thread<W>(
     window: Arc<W>, 
     width: u32, 
     height: u32,
+    world: Arc<Mutex<bevy_ecs::world::World>>,
     rx: Receiver<RenderMessage>
 ) 
 where 
@@ -358,58 +431,60 @@ where
             
         let mut optimizer = optimizer::RenderOptimizer::new(ncs_dict);
 
-        let mut world = bevy_ecs::world::World::new();
-
         // Insertar líneas asociadas a las capas reales del YAML de arquitectura
-        world.spawn((
-            fcad_core::domain::Geometry::Line(fcad_core::domain::math::primitives::Line {
-                start: fcad_core::domain::math::primitives::Point2D::new(-5.0, 5.0),
-                end: fcad_core::domain::math::primitives::Point2D::new(5.0, -5.0),
-            }),
-            fcad_core::domain::Layer("A-WALL".to_string()),
-        ));
+        {
+            let mut w = world.lock().unwrap();
+            w.spawn((
+                fcad_core::domain::Geometry::Line(fcad_core::domain::math::primitives::Line {
+                    start: fcad_core::domain::math::primitives::Point2D::new(-5.0, 5.0),
+                    end: fcad_core::domain::math::primitives::Point2D::new(5.0, -5.0),
+                }),
+                fcad_core::domain::Layer("A-WALL".to_string()),
+            ));
 
-        world.spawn((
-            fcad_core::domain::Geometry::Line(fcad_core::domain::math::primitives::Line {
-                start: fcad_core::domain::math::primitives::Point2D::new(-5.0, -5.0),
-                end: fcad_core::domain::math::primitives::Point2D::new(5.0, 5.0),
-            }),
-            fcad_core::domain::Layer("A-DOOR".to_string()),
-        ));
+            w.spawn((
+                fcad_core::domain::Geometry::Line(fcad_core::domain::math::primitives::Line {
+                    start: fcad_core::domain::math::primitives::Point2D::new(-5.0, -5.0),
+                    end: fcad_core::domain::math::primitives::Point2D::new(5.0, 5.0),
+                }),
+                fcad_core::domain::Layer("A-DOOR".to_string()),
+            ));
 
-        world.spawn((
-            fcad_core::domain::Geometry::Line(fcad_core::domain::math::primitives::Line {
-                start: fcad_core::domain::math::primitives::Point2D::new(-8.0, 0.0),
-                end: fcad_core::domain::math::primitives::Point2D::new(8.0, 0.0),
-            }),
-            fcad_core::domain::Layer("A-GLAZ".to_string()),
-        ));
+            w.spawn((
+                fcad_core::domain::Geometry::Line(fcad_core::domain::math::primitives::Line {
+                    start: fcad_core::domain::math::primitives::Point2D::new(-8.0, 0.0),
+                    end: fcad_core::domain::math::primitives::Point2D::new(8.0, 0.0),
+                }),
+                fcad_core::domain::Layer("A-GLAZ".to_string()),
+            ));
+        }
 
         // Sync inicial ECS -> Renderer Optimizer
         {
-            let mut added_query = world.query_filtered::<(
+            let mut w = world.lock().unwrap();
+            let mut added_query = w.query_filtered::<(
                 bevy_ecs::entity::Entity, 
                 &fcad_core::domain::Geometry, 
                 Option<&fcad_core::domain::Layer>, 
                 Option<&fcad_core::domain::ColorOverride>
             ), bevy_ecs::query::Added<fcad_core::domain::Geometry>>();
             
-            let mut changed_query = world.query_filtered::<(
+            let mut changed_query = w.query_filtered::<(
                 bevy_ecs::entity::Entity, 
                 &fcad_core::domain::Geometry, 
                 Option<&fcad_core::domain::Layer>, 
                 Option<&fcad_core::domain::ColorOverride>
             ), bevy_ecs::query::Changed<fcad_core::domain::Geometry>>();
             
-            let mut deleted_query = world.query_filtered::<
+            let mut deleted_query = w.query_filtered::<
                 bevy_ecs::entity::Entity, 
                 bevy_ecs::query::Added<fcad_core::domain::Deleted>
             >();
 
             optimizer.sync_system(
-                added_query.iter(&world),
-                changed_query.iter(&world),
-                deleted_query.iter(&world)
+                added_query.iter(&w),
+                changed_query.iter(&w),
+                deleted_query.iter(&w)
             );
         }
 
