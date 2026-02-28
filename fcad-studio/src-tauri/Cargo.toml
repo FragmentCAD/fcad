@@ -1,9 +1,10 @@
 [package]
 name = "fcad-studio"
-version = "0.1.0"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
 description = "FragmentCAD Studio IDE"
-authors = ["FragmentCAD Team"]
-edition = "2021"
 
 [lib]
 name = "fcad_studio_lib"

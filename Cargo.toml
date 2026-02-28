@@ -1,4 +1,10 @@
 [workspace]
+package.version = "0.1.0"
+package.authors = ["FragmentCAD Team"]
+package.edition = "2021"
+package.license = "MIT"
+package.description = "FragmentCAD Monorepo Workspace"
+
 members = [
     "fcad-core",
     "fcad-renderer",

@@ -1,7 +1,9 @@
 [package]
 name = "fcad-renderer"
-version = "0.1.0"
+version.workspace = true
+authors.workspace = true
 edition = "2024"
+license.workspace = true
 
 [dependencies]
 bevy_ecs = { workspace = true }
