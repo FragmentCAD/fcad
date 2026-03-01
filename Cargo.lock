@@ -1532,6 +1532,7 @@ dependencies = [
  "bevy_ecs",
  "fcad-core",
  "fcad-renderer",
+ "glam",
  "raw-window-handle",
  "serde",
  "serde_json",

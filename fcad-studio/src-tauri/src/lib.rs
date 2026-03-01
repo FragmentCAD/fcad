@@ -11,7 +11,6 @@ struct AppState {
     render_tx: Mutex<std::sync::mpsc::Sender<fcad_renderer::RenderMessage>>,
     tool_manager: Mutex<ToolManager>,
     world: Arc<Mutex<bevy_ecs::world::World>>,
-    camera: Mutex<fcad_renderer::camera::Camera>,
     current_theme: Mutex<fcad_core::domain::theme::Theme>,
 }
 
@@ -58,17 +57,11 @@ fn hit_test(state: tauri::State<'_, AppState>, x: f64, y: f64) -> Vec<String> {
 }
 
 #[tauri::command]
-fn update_viewport_rect(window: tauri::Window, state: tauri::State<'_, AppState>, x: f64, y: f64, width: f64, height: f64) {
+fn update_viewport_rect(window: tauri::Window, state: tauri::State<'_, AppState>, _x: f64, _y: f64, width: f64, height: f64) {
     let factor = window.scale_factor().unwrap_or(1.0);
-    if let Ok(tx) = state.render_tx.lock() {
-        let _ = tx.send(fcad_renderer::RenderMessage::ViewportUpdate(fcad_renderer::ViewportRect {
-            x: (x * factor) as u32,
-            y: (y * factor) as u32,
-            width: (width * factor) as u32,
-            height: (height * factor) as u32,
-        }));
-    }
-    if let Ok(mut cam) = state.camera.lock() {
+    // Ya no enviamos un mensaje asíncrono. En su lugar, mutamos la cámara global del ECS.
+    let mut world = state.world.lock().unwrap();
+    if let Some(mut cam) = world.get_resource_mut::<fcad_core::domain::viewport::Camera>() {
         cam.screen_width = (width * factor) as f32;
         cam.screen_height = (height * factor) as f32;
     }
@@ -78,15 +71,10 @@ fn update_viewport_rect(window: tauri::Window, state: tauri::State<'_, AppState>
 #[tauri::command]
 fn send_camera_zoom(window: tauri::Window, state: tauri::State<'_, AppState>, factor: f32, anchor_x: f32, anchor_y: f32) {
     let scale = window.scale_factor().unwrap_or(1.0) as f32;
-    if let Ok(tx) = state.render_tx.lock() {
-        let _ = tx.send(fcad_renderer::RenderMessage::CameraZoom {
-            factor,
-            anchor_x: anchor_x * scale,
-            anchor_y: anchor_y * scale,
-        });
-    }
-    // Sincronizar zoom en la cámara local
-    if let Ok(mut cam) = state.camera.lock() {
+    
+    // Mutamos directamente el ECS
+    let mut world = state.world.lock().unwrap();
+    if let Some(mut cam) = world.get_resource_mut::<fcad_core::domain::viewport::Camera>() {
         cam.zoom_at(factor, anchor_x * scale, anchor_y * scale);
     }
 }
@@ -95,13 +83,10 @@ fn send_camera_zoom(window: tauri::Window, state: tauri::State<'_, AppState>, fa
 #[tauri::command]
 fn send_camera_pan(window: tauri::Window, state: tauri::State<'_, AppState>, dx: f32, dy: f32) {
     let scale = window.scale_factor().unwrap_or(1.0) as f32;
-    if let Ok(tx) = state.render_tx.lock() {
-        let _ = tx.send(fcad_renderer::RenderMessage::CameraPan { 
-            dx: dx * scale, 
-            dy: dy * scale 
-        });
-    }
-    if let Ok(mut cam) = state.camera.lock() {
+    
+    // Mutamos directamente el ECS
+    let mut world = state.world.lock().unwrap();
+    if let Some(mut cam) = world.get_resource_mut::<fcad_core::domain::viewport::Camera>() {
         cam.pan(dx * scale, dy * scale);
     }
 }
@@ -151,9 +136,15 @@ fn get_active_tool(state: tauri::State<'_, AppState>) -> String {
 fn send_tool_click(window: tauri::Window, state: tauri::State<'_, AppState>, button: String, x: f32, y: f32) -> String {
     let scale = window.scale_factor().unwrap_or(1.0) as f32;
     // Traducir pantalla a coordenadas del mundo (World Space)
+    // Traducir pantalla a coordenadas del mundo con la Cámara Global del ECS
     let world_pos = {
-        let cam = state.camera.lock().unwrap();
-        cam.unproject(x * scale, y * scale)
+        let world = state.world.lock().unwrap();
+        if let Some(cam) = world.get_resource::<fcad_core::domain::viewport::Camera>() {
+            cam.unproject(x * scale, y * scale)
+        } else {
+            // Fallback si por algun error no hubiera cámara (no debe pasar)
+            glam::Vec2::new(x * scale, y * scale)
+        }
     };
 
     use fcad_core::application::input::{InputEvent, MouseButton};
@@ -176,10 +167,10 @@ fn send_tool_click(window: tauri::Window, state: tauri::State<'_, AppState>, but
     let mut tm = state.tool_manager.lock().unwrap();
     let index = state.spatial_index.lock().unwrap();
     let mut world = state.world.lock().unwrap();
-    let cam = state.camera.lock().unwrap();
+    let zoom = if let Some(cam) = world.get_resource::<fcad_core::domain::viewport::Camera>() { cam.zoom } else { 1.0 };
     
     let provider = WorldGeometryProvider { world: &world };
-    let response = tm.process_input(&event, &index, &provider, cam.zoom);
+    let response = tm.process_input(&event, &index, &provider, zoom);
 
     // Si la herramienta se completó, materializamos el resultado en el ECS
     if let ToolManagerResponse::Tool(ToolResponse::Completed(result), _) = &response {
@@ -226,10 +217,14 @@ fn send_tool_click(window: tauri::Window, state: tauri::State<'_, AppState>, but
 #[tauri::command]
 fn send_tool_move(window: tauri::Window, state: tauri::State<'_, AppState>, x: f32, y: f32) -> String {
     let scale = window.scale_factor().unwrap_or(1.0) as f32;
-    // Traducir pantalla a coordenadas del mundo (World Space)
+    // Traducir pantalla a coordenadas del mundo con la Cámara Global del ECS
     let world_pos = {
-        let cam = state.camera.lock().unwrap();
-        cam.unproject(x * scale, y * scale)
+        let world = state.world.lock().unwrap();
+        if let Some(cam) = world.get_resource::<fcad_core::domain::viewport::Camera>() {
+            cam.unproject(x * scale, y * scale)
+        } else {
+            glam::Vec2::new(x * scale, y * scale)
+        }
     };
 
     use fcad_core::application::input::InputEvent;
@@ -243,10 +238,10 @@ fn send_tool_move(window: tauri::Window, state: tauri::State<'_, AppState>, x: f
     let mut tm = state.tool_manager.lock().unwrap();
     let index = state.spatial_index.lock().unwrap();
     let world = state.world.lock().unwrap();
-    let cam = state.camera.lock().unwrap();
+    let zoom = if let Some(cam) = world.get_resource::<fcad_core::domain::viewport::Camera>() { cam.zoom } else { 1.0 };
     
     let provider = WorldGeometryProvider { world: &world };
-    let response = tm.process_input(&event, &index, &provider, cam.zoom);
+    let response = tm.process_input(&event, &index, &provider, zoom);
 
     // Enviar líneas temporales al Renderer si existen
     if let ToolManagerResponse::Tool(resp, _) = &response {
@@ -372,7 +367,6 @@ pub fn run() {
             render_tx: Mutex::new(tx.clone()),
             tool_manager: Mutex::new(ToolManager::new()),
             world: world.clone(),
-            camera: Mutex::new(fcad_renderer::camera::Camera::default()),
             current_theme: Mutex::new(fcad_core::domain::theme::Theme::default()),
         })
         .plugin(tauri_plugin_opener::init())
@@ -416,6 +410,7 @@ pub fn run() {
             
             world_guard.insert_resource(standards);
             world_guard.insert_resource(ActiveLayer::default());
+            world_guard.insert_resource(fcad_core::domain::viewport::Camera::new(size.width as f32, size.height as f32));
             drop(world_guard);
             // ------------------------------------
 

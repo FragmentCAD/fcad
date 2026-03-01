@@ -1,6 +1,5 @@
 use raw_window_handle::{HasDisplayHandle, HasWindowHandle};
 
-pub mod camera;
 pub mod tessellator;
 pub mod optimizer;
 pub mod grid;
@@ -54,10 +53,6 @@ pub struct ViewportRect {
 pub enum RenderMessage {
     ViewportUpdate(ViewportRect),
     WindowResize(u32, u32),
-    /// Zoom de la cámara: factor multiplicador y posición ancla en pantalla.
-    CameraZoom { factor: f32, anchor_x: f32, anchor_y: f32 },
-    /// Pan de la cámara: delta en píxeles de pantalla.
-    CameraPan { dx: f32, dy: f32 },
     /// Actualización del tema visual
     UpdateTheme(fcad_core::domain::theme::Theme),
     /// Actualización de geometría temporal (feedback visual)
@@ -350,7 +345,7 @@ impl<'window> Renderer<'window> {
     }
 
     /// Actualiza el uniform buffer de la cámara y regenera la grilla.
-    pub fn update_camera(&mut self, camera: &camera::Camera) {
+    pub fn update_camera(&mut self, camera: &fcad_core::domain::viewport::Camera) {
         let vp = camera.build_view_projection_matrix();
         let uniform = CameraUniform {
             view_proj: vp.to_cols_array_2d(),
@@ -506,12 +501,10 @@ where
         }
 
         let mut renderer = pollster::block_on(Renderer::new(window, width, height, &optimizer));
-        let mut cam = camera::Camera::new(width as f32, height as f32);
-        renderer.update_camera(&cam);
+        let mut current_cam: Option<fcad_core::domain::viewport::Camera> = None;
         println!("Renderer initialized. Starting 60FPS loop with ECS data...");
         
         let mut current_vp: Option<ViewportRect> = None;
-        let mut camera_dirty = false;
 
         loop {
             // Procesar mensajes pendientes sin bloquear
@@ -519,20 +512,9 @@ where
                 match msg {
                     RenderMessage::ViewportUpdate(vp) => {
                         current_vp = Some(vp);
-                        cam.screen_width = vp.width as f32;
-                        cam.screen_height = vp.height as f32;
-                        camera_dirty = true;
                     }
                     RenderMessage::WindowResize(w, h) => {
                         renderer.resize(w, h);
-                    }
-                    RenderMessage::CameraZoom { factor, anchor_x, anchor_y } => {
-                        cam.zoom_at(factor, anchor_x, anchor_y);
-                        camera_dirty = true;
-                    }
-                    RenderMessage::CameraPan { dx, dy } => {
-                        cam.pan(dx, dy);
-                        camera_dirty = true;
                     }
                     RenderMessage::UpdateTheme(theme) => {
                         renderer.update_theme(theme);
@@ -543,9 +525,14 @@ where
                 }
             }
 
-            if camera_dirty {
-                renderer.update_camera(&cam);
-                camera_dirty = false;
+            let cam = {
+                let w = world.lock().unwrap();
+                w.get_resource::<fcad_core::domain::viewport::Camera>().cloned()
+            };
+            
+            if let Some(c) = cam {
+                // To avoid drawing duplicates logic could check if dirty here
+                renderer.update_camera(&c);
             }
 
             renderer.draw(current_vp);
