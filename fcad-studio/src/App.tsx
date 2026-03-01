@@ -10,6 +10,7 @@ import { StatusBar } from "@/modules/core/components/layout/StatusBar";
 import { CanvasViewport } from "@/modules/viewport/components/CanvasViewport";
 import { PropertiesPanel } from "@/modules/properties/components/PropertiesPanel";
 import { RightSidebar } from "@/modules/core/components/layout/RightSidebar";
+import { DrawingPalette } from "@/modules/tools/components/DrawingPalette";
 
 import { ThemeProvider } from "@/modules/core/contexts/ThemeContext";
 import { LayerProvider } from "@/modules/core/contexts/LayerContext";
@@ -32,6 +33,7 @@ export default function App() {
 
             <ResizablePanel defaultSize={60}>
               <div className="relative flex h-full flex-col bg-transparent">
+                <DrawingPalette />
                 <CanvasViewport onHitTested={setLastHit} />
               </div>
             </ResizablePanel>

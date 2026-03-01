@@ -112,6 +112,16 @@ fn set_active_tool(state: tauri::State<'_, AppState>, tool_name: String) -> Stri
             tm.set_tool(Box::new(LineTool::new()));
             "line".to_string()
         }
+        "rect" => {
+            use fcad_core::application::tools::rect_tool::RectTool;
+            tm.set_tool(Box::new(RectTool::new()));
+            "rect".to_string()
+        }
+        "erase" => {
+            use fcad_core::application::tools::erase_tool::EraseTool;
+            tm.set_tool(Box::new(EraseTool::new()));
+            "erase".to_string()
+        }
         "none" | "" => {
             tm.clear_tool();
             "none".to_string()
@@ -169,6 +179,24 @@ fn send_tool_click(window: tauri::Window, state: tauri::State<'_, AppState>, but
                     }),
                     Layer(active_layer.0),
                 ));
+            }
+            ToolResult::Rectangle { p1, p2 } => {
+                use fcad_core::domain::math::primitives::Rectangle;
+                let active_layer = world.get_resource::<ActiveLayer>().cloned().unwrap_or_default();
+                world.spawn((
+                    Geometry::Rectangle(Rectangle {
+                        p1: Point2D::new(p1[0] as f64, p1[1] as f64),
+                        p2: Point2D::new(p2[0] as f64, p2[1] as f64),
+                    }),
+                    Layer(active_layer.0),
+                ));
+            }
+            ToolResult::Deleted(entities) => {
+                for entity in entities {
+                    if world.get_entity(*entity).is_some() {
+                        world.despawn(*entity);
+                    }
+                }
             }
             ToolResult::Space { vertices, space_kind } => {
                 // TODO: Implementar materialización de polígonos/espacios si es necesario

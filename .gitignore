@@ -31,6 +31,7 @@ pnpm-debug.log*
 *.sln
 *.sw?
 .DS_Store
+*.txt
 
 # Environment Variables
 .env

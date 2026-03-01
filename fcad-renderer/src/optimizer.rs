@@ -72,6 +72,8 @@ impl RenderOptimizer {
                 if let Geometry::Line(line) = geometry {
                     self.instances[index] = self.convert_line(&line, layer, color_override);
                     self.dirty_ranges.push(index);
+                } else {
+                    // TODO: Implement support for other geometry types in the renderer
                 }
             }
         }
@@ -91,6 +93,8 @@ impl RenderOptimizer {
                 
                 self.entity_to_index.insert(entity, index);
                 self.dirty_ranges.push(index);
+            } else {
+                // TODO: Implement support for other geometry types in the renderer
             }
         }
     }

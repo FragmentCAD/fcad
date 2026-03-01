@@ -1,5 +1,7 @@
 pub mod space_tool;
 pub mod line_tool;
+pub mod rect_tool;
+pub mod erase_tool;
 
 use super::input::InputEvent;
 use super::snap::{SnapEngine, SnapResult, GeometryProvider, SnapType};
@@ -32,6 +34,13 @@ pub enum ToolResult {
         start: [f32; 2],
         end: [f32; 2],
     },
+    /// Un rectángulo definido por dos esquinas opuestas.
+    Rectangle {
+        p1: [f32; 2],
+        p2: [f32; 2],
+    },
+    /// Una lista de entidades que deben ser borradas.
+    Deleted(Vec<bevy_ecs::entity::Entity>),
 }
 
 /// Trait que define el ciclo de vida de una herramienta CAD interactiva.
@@ -44,7 +53,7 @@ pub trait Tool: Send + Sync {
     fn on_start(&mut self);
 
     /// Procesa un evento de entrada y retorna la respuesta correspondiente.
-    fn on_input(&mut self, event: &InputEvent) -> ToolResponse;
+    fn on_input(&mut self, event: &InputEvent, spatial_index: &SpatialIndex) -> ToolResponse;
 
     /// Cancela la operación actual y resetea el estado de la herramienta.
     fn on_cancel(&mut self);
@@ -122,7 +131,7 @@ impl ToolManager {
                 _ => {}
             }
 
-            let response = tool.on_input(&event_to_process);
+            let response = tool.on_input(&event_to_process, spatial_index);
             
             // Si fue un Click exitoso, actualizamos el punto de referencia para Ortho
             if let InputEvent::Click { button, x, y } = &event_to_process {
@@ -185,7 +194,7 @@ mod tests {
             self.started = true;
         }
 
-        fn on_input(&mut self, event: &InputEvent) -> ToolResponse {
+        fn on_input(&mut self, event: &InputEvent, _spatial_index: &SpatialIndex) -> ToolResponse {
             self.last_input = Some(event.clone());
             ToolResponse::Consumed
         }

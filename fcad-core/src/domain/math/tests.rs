@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use crate::domain::math::primitives::{Point2D, Line, Circle};
+    use crate::domain::math::primitives::{Point2D, Line, Circle, Rectangle};
 
     #[test]
     fn test_point_distance() {
@@ -20,5 +20,15 @@ mod tests {
         let circle = Circle::new(Point2D::new(0.0, 0.0), 10.0);
         let expected_area = std::f64::consts::PI * 100.0;
         assert_eq!(circle.area(), expected_area);
+    }
+
+    #[test]
+    fn test_rectangle_area() {
+        let p1 = Point2D::new(0.0, 0.0);
+        let p2 = Point2D::new(10.0, 5.0);
+        let rect = Rectangle::new(p1, p2);
+        assert_eq!(rect.width(), 10.0);
+        assert_eq!(rect.height(), 5.0);
+        assert_eq!(rect.area(), 50.0);
     }
 }

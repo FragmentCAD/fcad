@@ -106,6 +106,17 @@ pub fn export_dxf(path: &str, world: &mut World) -> Result<(), dxf::DxfError> {
                 arc.end_angle = a.end_angle.to_degrees();
                 Entity::new(EntityType::Arc(arc))
             },
+            Geometry::Rectangle(r) => {
+                let mut poly = dxf::entities::LwPolyline::default();
+                poly.vertices = vec![
+                    dxf::LwPolylineVertex { x: r.p1.x, y: r.p1.y, ..Default::default() },
+                    dxf::LwPolylineVertex { x: r.p2.x, y: r.p1.y, ..Default::default() },
+                    dxf::LwPolylineVertex { x: r.p2.x, y: r.p2.y, ..Default::default() },
+                    dxf::LwPolylineVertex { x: r.p1.x, y: r.p2.y, ..Default::default() },
+                ];
+                poly.flags = 1; // Closed
+                Entity::new(EntityType::LwPolyline(poly))
+            },
         };
         
         entity.common.layer = layer.0.clone();
