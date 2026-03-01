@@ -11,7 +11,7 @@ struct AppState {
     render_tx: Mutex<std::sync::mpsc::Sender<fcad_renderer::RenderMessage>>,
     tool_manager: Mutex<ToolManager>,
     world: Arc<Mutex<bevy_ecs::world::World>>,
-    zoom: Mutex<f32>,
+    camera: Mutex<fcad_renderer::camera::Camera>,
     current_theme: Mutex<fcad_core::domain::theme::Theme>,
 }
 
@@ -68,6 +68,10 @@ fn update_viewport_rect(window: tauri::Window, state: tauri::State<'_, AppState>
             height: (height * factor) as u32,
         }));
     }
+    if let Ok(mut cam) = state.camera.lock() {
+        cam.screen_width = (width * factor) as f32;
+        cam.screen_height = (height * factor) as f32;
+    }
 }
 
 /// Comando IPC para Zoom de cámara (enviado desde React onWheel).
@@ -81,9 +85,10 @@ fn send_camera_zoom(window: tauri::Window, state: tauri::State<'_, AppState>, fa
             anchor_y: anchor_y * scale,
         });
     }
-    // Sincronizar zoom en el estado para el SnapEngine
-    let mut z = state.zoom.lock().unwrap();
-    *z = (*z * factor).clamp(0.001, 100_000.0);
+    // Sincronizar zoom en la cámara local
+    if let Ok(mut cam) = state.camera.lock() {
+        cam.zoom_at(factor, anchor_x * scale, anchor_y * scale);
+    }
 }
 
 /// Comando IPC para Pan de cámara (enviado desde React middle-drag).
@@ -95,6 +100,9 @@ fn send_camera_pan(window: tauri::Window, state: tauri::State<'_, AppState>, dx:
             dx: dx * scale, 
             dy: dy * scale 
         });
+    }
+    if let Ok(mut cam) = state.camera.lock() {
+        cam.pan(dx * scale, dy * scale);
     }
 }
 
@@ -142,6 +150,12 @@ fn get_active_tool(state: tauri::State<'_, AppState>) -> String {
 #[tauri::command]
 fn send_tool_click(window: tauri::Window, state: tauri::State<'_, AppState>, button: String, x: f32, y: f32) -> String {
     let scale = window.scale_factor().unwrap_or(1.0) as f32;
+    // Traducir pantalla a coordenadas del mundo (World Space)
+    let world_pos = {
+        let cam = state.camera.lock().unwrap();
+        cam.unproject(x * scale, y * scale)
+    };
+
     use fcad_core::application::input::{InputEvent, MouseButton};
     use fcad_core::application::tools::{ToolManagerResponse, ToolResponse, ToolResult};
     use fcad_core::domain::{Geometry, Layer, math::primitives::Point2D, math::primitives::Line};
@@ -155,17 +169,17 @@ fn send_tool_click(window: tauri::Window, state: tauri::State<'_, AppState>, but
     };
     let event = InputEvent::Click { 
         button: btn, 
-        x: x * scale, 
-        y: y * scale 
+        x: world_pos.x, 
+        y: world_pos.y 
     };
 
     let mut tm = state.tool_manager.lock().unwrap();
     let index = state.spatial_index.lock().unwrap();
     let mut world = state.world.lock().unwrap();
-    let zoom = state.zoom.lock().unwrap();
+    let cam = state.camera.lock().unwrap();
     
     let provider = WorldGeometryProvider { world: &world };
-    let response = tm.process_input(&event, &index, &provider, *zoom);
+    let response = tm.process_input(&event, &index, &provider, cam.zoom);
 
     // Si la herramienta se completó, materializamos el resultado en el ECS
     if let ToolManagerResponse::Tool(ToolResponse::Completed(result), _) = &response {
@@ -212,21 +226,27 @@ fn send_tool_click(window: tauri::Window, state: tauri::State<'_, AppState>, but
 #[tauri::command]
 fn send_tool_move(window: tauri::Window, state: tauri::State<'_, AppState>, x: f32, y: f32) -> String {
     let scale = window.scale_factor().unwrap_or(1.0) as f32;
+    // Traducir pantalla a coordenadas del mundo (World Space)
+    let world_pos = {
+        let cam = state.camera.lock().unwrap();
+        cam.unproject(x * scale, y * scale)
+    };
+
     use fcad_core::application::input::InputEvent;
     use fcad_core::application::tools::{ToolManagerResponse, ToolResponse};
 
     let event = InputEvent::PointerMove { 
-        x: x * scale, 
-        y: y * scale 
+        x: world_pos.x, 
+        y: world_pos.y 
     };
 
     let mut tm = state.tool_manager.lock().unwrap();
     let index = state.spatial_index.lock().unwrap();
     let world = state.world.lock().unwrap();
-    let zoom = state.zoom.lock().unwrap();
+    let cam = state.camera.lock().unwrap();
     
     let provider = WorldGeometryProvider { world: &world };
-    let response = tm.process_input(&event, &index, &provider, *zoom);
+    let response = tm.process_input(&event, &index, &provider, cam.zoom);
 
     // Enviar líneas temporales al Renderer si existen
     if let ToolManagerResponse::Tool(resp, _) = &response {
@@ -352,7 +372,7 @@ pub fn run() {
             render_tx: Mutex::new(tx.clone()),
             tool_manager: Mutex::new(ToolManager::new()),
             world: world.clone(),
-            zoom: Mutex::new(1.0),
+            camera: Mutex::new(fcad_renderer::camera::Camera::default()),
             current_theme: Mutex::new(fcad_core::domain::theme::Theme::default()),
         })
         .plugin(tauri_plugin_opener::init())
