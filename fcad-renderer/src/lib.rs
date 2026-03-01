@@ -12,8 +12,8 @@ use wgpu::util::DeviceExt;
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct Vertex {
-    position: [f32; 3],
-    color: [f32; 4],
+    pub position: [f32; 3],
+    pub color: [f32; 4],
 }
 
 impl Vertex {
@@ -60,6 +60,8 @@ pub enum RenderMessage {
     CameraPan { dx: f32, dy: f32 },
     /// Actualización del tema visual
     UpdateTheme(fcad_core::domain::theme::Theme),
+    /// Actualización de geometría temporal (feedback visual)
+    UpdateEphemeral(Vec<Vertex>),
 }
 
 pub struct Renderer<'window> {
@@ -77,6 +79,9 @@ pub struct Renderer<'window> {
     pub grid_vertex_buffer: wgpu::Buffer,
     pub grid_index_buffer: wgpu::Buffer,
     pub num_grid_indices: u32,
+    // Ephemeral (Feedback)
+    pub ephemeral_vertex_buffer: wgpu::Buffer,
+    pub num_ephemeral_verts: u32,
     // Theme
     pub active_theme: fcad_core::domain::theme::Theme,
 }
@@ -297,6 +302,14 @@ impl<'window> Renderer<'window> {
             mapped_at_creation: false,
         });
 
+        // Buffer persistente para feedback (1000 vértices de margen)
+        let ephemeral_vertex_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Ephemeral Vertex Buffer"),
+            size: (std::mem::size_of::<Vertex>() * 1000) as u64,
+            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+
         Self {
             surface,
             device,
@@ -311,7 +324,16 @@ impl<'window> Renderer<'window> {
             grid_vertex_buffer,
             grid_index_buffer,
             num_grid_indices: 0,
+            ephemeral_vertex_buffer,
+            num_ephemeral_verts: 0,
             active_theme: fcad_core::domain::theme::Theme::default(),
+        }
+    }
+
+    pub fn update_ephemeral(&mut self, vertices: &[Vertex]) {
+        self.num_ephemeral_verts = vertices.len() as u32;
+        if !vertices.is_empty() {
+            self.queue.write_buffer(&self.ephemeral_vertex_buffer, 0, bytemuck::cast_slice(vertices));
         }
     }
 
@@ -419,6 +441,12 @@ impl<'window> Renderer<'window> {
             render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
             render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
             render_pass.draw(0..self.num_vertices, 0..1);
+
+            // 3. Draw Ephemeral Feedback (Rubber-banding) on top
+            if self.num_ephemeral_verts > 0 {
+                render_pass.set_vertex_buffer(0, self.ephemeral_vertex_buffer.slice(..));
+                render_pass.draw(0..self.num_ephemeral_verts, 0..1);
+            }
         }
 
         self.queue.submit(std::iter::once(encoder.finish()));
@@ -443,32 +471,9 @@ where
             
         let mut optimizer = optimizer::RenderOptimizer::new(ncs_standards);
 
-        // Insertar líneas asociadas a las capas reales del YAML de arquitectura
+        // Iniciamos con el ECS vacío de geometría de prueba
         {
-            let mut w = world.lock().unwrap();
-            w.spawn((
-                fcad_core::domain::Geometry::Line(fcad_core::domain::math::primitives::Line {
-                    start: fcad_core::domain::math::primitives::Point2D::new(-5.0, 5.0),
-                    end: fcad_core::domain::math::primitives::Point2D::new(5.0, -5.0),
-                }),
-                fcad_core::domain::Layer("A-WALL".to_string()),
-            ));
-
-            w.spawn((
-                fcad_core::domain::Geometry::Line(fcad_core::domain::math::primitives::Line {
-                    start: fcad_core::domain::math::primitives::Point2D::new(-5.0, -5.0),
-                    end: fcad_core::domain::math::primitives::Point2D::new(5.0, 5.0),
-                }),
-                fcad_core::domain::Layer("A-DOOR".to_string()),
-            ));
-
-            w.spawn((
-                fcad_core::domain::Geometry::Line(fcad_core::domain::math::primitives::Line {
-                    start: fcad_core::domain::math::primitives::Point2D::new(-8.0, 0.0),
-                    end: fcad_core::domain::math::primitives::Point2D::new(8.0, 0.0),
-                }),
-                fcad_core::domain::Layer("A-GLAZ".to_string()),
-            ));
+            let mut _w = world.lock().unwrap();
         }
 
         // Sync inicial ECS -> Renderer Optimizer
@@ -531,7 +536,9 @@ where
                     }
                     RenderMessage::UpdateTheme(theme) => {
                         renderer.update_theme(theme);
-                        // No necesitamos marcar camera_dirty pero forzamos un redraw si fuera necesario.
+                    }
+                    RenderMessage::UpdateEphemeral(vertices) => {
+                        renderer.update_ephemeral(&vertices);
                     }
                 }
             }

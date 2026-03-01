@@ -107,6 +107,11 @@ fn set_active_tool(state: tauri::State<'_, AppState>, tool_name: String) -> Stri
             tm.set_tool(Box::new(SpaceTool::new()));
             "space".to_string()
         }
+        "line" => {
+            use fcad_core::application::tools::line_tool::LineTool;
+            tm.set_tool(Box::new(LineTool::new()));
+            "line".to_string()
+        }
         "none" | "" => {
             tm.clear_tool();
             "none".to_string()
@@ -128,6 +133,10 @@ fn get_active_tool(state: tauri::State<'_, AppState>) -> String {
 fn send_tool_click(window: tauri::Window, state: tauri::State<'_, AppState>, button: String, x: f32, y: f32) -> String {
     let scale = window.scale_factor().unwrap_or(1.0) as f32;
     use fcad_core::application::input::{InputEvent, MouseButton};
+    use fcad_core::application::tools::{ToolManagerResponse, ToolResponse, ToolResult};
+    use fcad_core::domain::{Geometry, Layer, math::primitives::Point2D, math::primitives::Line};
+    use fcad_core::infrastructure::ecs::ncs::ActiveLayer;
+
     let btn = match button.as_str() {
         "left" => MouseButton::Left,
         "right" => MouseButton::Right,
@@ -142,11 +151,81 @@ fn send_tool_click(window: tauri::Window, state: tauri::State<'_, AppState>, but
 
     let mut tm = state.tool_manager.lock().unwrap();
     let index = state.spatial_index.lock().unwrap();
+    let mut world = state.world.lock().unwrap();
+    let zoom = state.zoom.lock().unwrap();
+    
+    let provider = WorldGeometryProvider { world: &world };
+    let response = tm.process_input(&event, &index, &provider, *zoom);
+
+    // Si la herramienta se completó, materializamos el resultado en el ECS
+    if let ToolManagerResponse::Tool(ToolResponse::Completed(result), _) = &response {
+        match result {
+            ToolResult::Line { start, end } => {
+                let active_layer = world.get_resource::<ActiveLayer>().cloned().unwrap_or_default();
+                world.spawn((
+                    Geometry::Line(Line {
+                        start: Point2D::new(start[0] as f64, start[1] as f64),
+                        end: Point2D::new(end[0] as f64, end[1] as f64),
+                    }),
+                    Layer(active_layer.0),
+                ));
+            }
+            ToolResult::Space { vertices, space_kind } => {
+                // TODO: Implementar materialización de polígonos/espacios si es necesario
+                println!("Space completed: {} with {} vertices", space_kind, vertices.len());
+            }
+        }
+    }
+
+    format!("{:?}", response)
+}
+
+/// Envía el movimiento del mouse al ToolManager para generar feedback (goma elástica).
+#[tauri::command]
+fn send_tool_move(window: tauri::Window, state: tauri::State<'_, AppState>, x: f32, y: f32) -> String {
+    let scale = window.scale_factor().unwrap_or(1.0) as f32;
+    use fcad_core::application::input::InputEvent;
+    use fcad_core::application::tools::{ToolManagerResponse, ToolResponse};
+
+    let event = InputEvent::PointerMove { 
+        x: x * scale, 
+        y: y * scale 
+    };
+
+    let mut tm = state.tool_manager.lock().unwrap();
+    let index = state.spatial_index.lock().unwrap();
     let world = state.world.lock().unwrap();
     let zoom = state.zoom.lock().unwrap();
     
     let provider = WorldGeometryProvider { world: &world };
     let response = tm.process_input(&event, &index, &provider, *zoom);
+
+    // Enviar líneas temporales al Renderer si existen
+    if let ToolManagerResponse::Tool(resp, _) = &response {
+        if let Ok(tx) = state.render_tx.lock() {
+            let vertices: Vec<fcad_renderer::Vertex> = match resp {
+                ToolResponse::EphemeralLines(lines) => {
+                    lines.iter()
+                        .flat_map(|(start, end)| {
+                            vec![
+                                fcad_renderer::Vertex {
+                                    position: [start[0], start[1], 0.0],
+                                    color: [0.0, 1.0, 1.0, 1.0], // Feedback Cyan para Rubber-banding
+                                },
+                                fcad_renderer::Vertex {
+                                    position: [end[0], end[1], 0.0],
+                                    color: [0.0, 1.0, 1.0, 1.0],
+                                },
+                            ]
+                        })
+                        .collect()
+                }
+                _ => Vec::new(), // Si no hay ephemeral lines, enviamos vector vacío para limpiar el buffer
+            };
+            let _ = tx.send(fcad_renderer::RenderMessage::UpdateEphemeral(vertices));
+        }
+    }
+
     format!("{:?}", response)
 }
 
@@ -257,6 +336,7 @@ pub fn run() {
             set_active_tool,
             get_active_tool,
             send_tool_click,
+            send_tool_move,
             toggle_grid_snap,
             get_snap_state,
             get_current_theme,

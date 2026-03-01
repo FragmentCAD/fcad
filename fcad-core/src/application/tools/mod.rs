@@ -1,4 +1,5 @@
 pub mod space_tool;
+pub mod line_tool;
 
 use super::input::InputEvent;
 use super::snap::{SnapEngine, SnapResult, GeometryProvider, SnapType};
@@ -25,6 +26,11 @@ pub enum ToolResult {
     Space {
         vertices: Vec<[f32; 2]>,
         space_kind: String,
+    },
+    /// Un segmento de línea simple.
+    Line {
+        start: [f32; 2],
+        end: [f32; 2],
     },
 }
 

@@ -11,6 +11,7 @@ export function CanvasViewport({ onHitTested }: CanvasViewportProps) {
 
   // ── Acumuladores para throttling con rAF ──
   const panAccum = useRef({ dx: 0, dy: 0, dirty: false });
+  const toolMoveAccum = useRef({ x: 0, y: 0, dirty: false });
   const isPanning = useRef(false);
   const lastPointer = useRef({ x: 0, y: 0 });
 
@@ -50,16 +51,25 @@ export function CanvasViewport({ onHitTested }: CanvasViewportProps) {
     };
 
     const handlePointerMove = (e: PointerEvent) => {
-      if (!isPanning.current) return;
+      const rect = el.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
 
-      const dx = e.clientX - lastPointer.current.x;
-      const dy = e.clientY - lastPointer.current.y;
-      lastPointer.current = { x: e.clientX, y: e.clientY };
+      if (isPanning.current) {
+        const dx = e.clientX - lastPointer.current.x;
+        const dy = e.clientY - lastPointer.current.y;
+        lastPointer.current = { x: e.clientX, y: e.clientY };
 
-      // Acumular deltas hasta el próximo frame
-      panAccum.current.dx += dx;
-      panAccum.current.dy += dy;
-      panAccum.current.dirty = true;
+        // Acumular deltas para Paneo
+        panAccum.current.dx += dx;
+        panAccum.current.dy += dy;
+        panAccum.current.dirty = true;
+      } else {
+        // Acumular posición para Herramientas (goma elástica)
+        toolMoveAccum.current.x = x;
+        toolMoveAccum.current.y = y;
+        toolMoveAccum.current.dirty = true;
+      }
     };
 
     const handlePointerUp = (e: PointerEvent) => {
@@ -104,9 +114,10 @@ export function CanvasViewport({ onHitTested }: CanvasViewportProps) {
       );
     };
 
-    // ── rAF Loop: Envía el Pan acumulado al backend ──
+    // ── rAF Loop: Diferencia entre Pan y ToolMove ──
     let rafId: number;
-    const flushPan = () => {
+    const flushInputs = () => {
+      // 1. Flush Pan
       if (panAccum.current.dirty) {
         const { dx, dy } = panAccum.current;
         invoke("send_camera_pan", { dx, dy }).catch(console.error);
@@ -115,9 +126,17 @@ export function CanvasViewport({ onHitTested }: CanvasViewportProps) {
         panAccum.current.dy = 0;
         panAccum.current.dirty = false;
       }
-      rafId = requestAnimationFrame(flushPan);
+
+      // 2. Flush Tool Move
+      if (toolMoveAccum.current.dirty) {
+        const { x, y } = toolMoveAccum.current;
+        invoke("send_tool_move", { x, y }).catch(console.error);
+        toolMoveAccum.current.dirty = false;
+      }
+
+      rafId = requestAnimationFrame(flushInputs);
     };
-    rafId = requestAnimationFrame(flushPan);
+    rafId = requestAnimationFrame(flushInputs);
 
     // ── Event Listeners ──
     el.addEventListener("wheel", handleWheel, { passive: false });
@@ -185,12 +204,7 @@ export function CanvasViewport({ onHitTested }: CanvasViewportProps) {
       style={{ touchAction: "none" }}
     >
       {/* Este es el hueco donde WGPU renderiza nativamente */}
-      <div className="pointer-events-none text-center text-white/5 select-none">
-        <p className="text-6xl font-black">WGPU VIEWPORT</p>
-        <p className="mt-2 text-sm opacity-50">
-          Sync React dimensions ⟷ Rust WGPU
-        </p>
-      </div>
+
 
       {/* HUD / Overlay — Info de Cámara en Tiempo Real */}
       <div className="absolute top-4 left-4 rounded border border-white/10 bg-black/50 p-2 font-mono text-[10px] text-white/70">
