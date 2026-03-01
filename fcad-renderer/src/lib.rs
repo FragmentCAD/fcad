@@ -501,7 +501,6 @@ where
         }
 
         let mut renderer = pollster::block_on(Renderer::new(window, width, height, &optimizer));
-        let mut current_cam: Option<fcad_core::domain::viewport::Camera> = None;
         println!("Renderer initialized. Starting 60FPS loop with ECS data...");
         
         let mut current_vp: Option<ViewportRect> = None;

@@ -57,9 +57,20 @@ fn hit_test(state: tauri::State<'_, AppState>, x: f64, y: f64) -> Vec<String> {
 }
 
 #[tauri::command]
-fn update_viewport_rect(window: tauri::Window, state: tauri::State<'_, AppState>, _x: f64, _y: f64, width: f64, height: f64) {
+fn update_viewport_rect(window: tauri::Window, state: tauri::State<'_, AppState>, x: f64, y: f64, width: f64, height: f64) {
     let factor = window.scale_factor().unwrap_or(1.0);
-    // Ya no enviamos un mensaje asíncrono. En su lugar, mutamos la cámara global del ECS.
+    
+    // Le informamos visualmente al renderer dónde pintar (para que WGPU use el aspect ratio y límites correctos)
+    if let Ok(tx) = state.render_tx.lock() {
+        let _ = tx.send(fcad_renderer::RenderMessage::ViewportUpdate(fcad_renderer::ViewportRect {
+            x: (x * factor) as u32,
+            y: (y * factor) as u32,
+            width: (width * factor) as u32,
+            height: (height * factor) as u32,
+        }));
+    }
+
+    // Y mutamos la matemática del ECS
     let mut world = state.world.lock().unwrap();
     if let Some(mut cam) = world.get_resource_mut::<fcad_core::domain::viewport::Camera>() {
         cam.screen_width = (width * factor) as f32;
