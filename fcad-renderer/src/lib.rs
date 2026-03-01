@@ -332,6 +332,39 @@ impl<'window> Renderer<'window> {
         }
     }
 
+    pub fn update_geometry(&mut self, optimizer: &optimizer::RenderOptimizer) {
+        use wgpu::util::DeviceExt;
+        
+        let mut vertices = Vec::new();
+        for inst in optimizer.instances.iter() {
+            if inst.thickness > 0.0 {
+                vertices.push(Vertex {
+                    position: [inst.start[0], inst.start[1], 0.0],
+                    color: inst.color,
+                });
+                vertices.push(Vertex {
+                    position: [inst.end[0], inst.end[1], 0.0],
+                    color: inst.color,
+                });
+            }
+        }
+
+        if vertices.is_empty() {
+            vertices.push(Vertex { position: [0.0; 3], color: [0.0; 4] });
+            self.num_vertices = 0;
+        } else {
+            self.num_vertices = vertices.len() as u32;
+        }
+
+        self.vertex_buffer = self.device.create_buffer_init(
+            &wgpu::util::BufferInitDescriptor {
+                label: Some("Dynamic Vertex Buffer"),
+                contents: bytemuck::cast_slice(&vertices),
+                usage: wgpu::BufferUsages::VERTEX,
+            }
+        );
+    }
+
     pub fn update_theme(&mut self, theme: fcad_core::domain::theme::Theme) {
         self.active_theme = theme;
     }
@@ -471,34 +504,7 @@ where
             let mut _w = world.lock().unwrap();
         }
 
-        // Sync inicial ECS -> Renderer Optimizer
-        {
-            let mut w = world.lock().unwrap();
-            let mut added_query = w.query_filtered::<(
-                bevy_ecs::entity::Entity, 
-                &fcad_core::domain::Geometry, 
-                Option<&fcad_core::domain::Layer>, 
-                Option<&fcad_core::domain::ColorOverride>
-            ), bevy_ecs::query::Added<fcad_core::domain::Geometry>>();
-            
-            let mut changed_query = w.query_filtered::<(
-                bevy_ecs::entity::Entity, 
-                &fcad_core::domain::Geometry, 
-                Option<&fcad_core::domain::Layer>, 
-                Option<&fcad_core::domain::ColorOverride>
-            ), bevy_ecs::query::Changed<fcad_core::domain::Geometry>>();
-            
-            let mut deleted_query = w.query_filtered::<
-                bevy_ecs::entity::Entity, 
-                bevy_ecs::query::Added<fcad_core::domain::Deleted>
-            >();
-
-            optimizer.sync_system(
-                added_query.iter(&w),
-                changed_query.iter(&w),
-                deleted_query.iter(&w)
-            );
-        }
+        // Sync ECS -> Optimizer se ha movido adentro del frame loop a 60FPS
 
         let mut renderer = pollster::block_on(Renderer::new(window, width, height, &optimizer));
         println!("Renderer initialized. Starting 60FPS loop with ECS data...");
@@ -525,8 +531,41 @@ where
             }
 
             let cam = {
-                let w = world.lock().unwrap();
-                w.get_resource::<fcad_core::domain::viewport::Camera>().cloned()
+                let mut w = world.lock().unwrap();
+                let cam_clone = w.get_resource::<fcad_core::domain::viewport::Camera>().cloned();
+                
+                let mut added_query = w.query_filtered::<(
+                    bevy_ecs::entity::Entity, 
+                    &fcad_core::domain::Geometry, 
+                    Option<&fcad_core::domain::Layer>, 
+                    Option<&fcad_core::domain::ColorOverride>
+                ), bevy_ecs::query::Added<fcad_core::domain::Geometry>>();
+                
+                let mut changed_query = w.query_filtered::<(
+                    bevy_ecs::entity::Entity, 
+                    &fcad_core::domain::Geometry, 
+                    Option<&fcad_core::domain::Layer>, 
+                    Option<&fcad_core::domain::ColorOverride>
+                ), bevy_ecs::query::Changed<fcad_core::domain::Geometry>>();
+                
+                let mut deleted_query = w.query_filtered::<
+                    bevy_ecs::entity::Entity, 
+                    bevy_ecs::query::Added<fcad_core::domain::Deleted>
+                >();
+
+                optimizer.sync_system(
+                    added_query.iter(&w),
+                    changed_query.iter(&w),
+                    deleted_query.iter(&w)
+                );
+
+                if !optimizer.dirty_ranges.is_empty() {
+                    renderer.update_geometry(&optimizer);
+                    optimizer.dirty_ranges.clear();
+                }
+
+                w.clear_trackers();
+                cam_clone
             };
             
             if let Some(c) = cam {
