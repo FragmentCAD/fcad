@@ -35,3 +35,11 @@ El proyecto ha sido rediseñado para gritar su propósito:
 - *Bloqueo de Cargo:* Si `cargo fetch` en Windows da OsError 32 (archivo en uso por el antivirus/indexer local), cancela, espera un par de segundos y vuelve a lanzar el fetch global en el Workspace Root.
 
 Recuerda: **Eres el mantenedor y orquestador técnico de esta solución. Mantén limpio el Workspace y delega de manera quirúrgica.**
+
+## 5. Master Plan y Roadmap (North Star)
+La visión arquitectónica completa y sus fases (v0.1.0 -> v1.0) están persistidas en Engram bajo el título **"FragmentCAD Master Plan"** (Topic Key: `architecture/fragmentcad-master-plan`). 
+**Siempre** consulta esta memoria o solicita al Orquestador que la recupere de Engram antes de proponer cambios arquitectónicos importantes. Las directrices principales son:
+- **FASE 1:** Core, Navegación (Osnaps, Hardware-acceleration) e Interfaz Híbrida (LUI + Paleta Flotante + Layout Anclable `flexlayout-react`).
+- **FASE 2:** Infraestructura Semántica (LSP Arquitectónico, ECS con Intención), Interceptor de Comandos y Linter en Tiempo Real (Feedback Visual WGPU).
+- **FASE 3:** Geometría Avanzada (Booleanas 2D) y Ecosistema de Agentes Nativos (Lead, Drafting, Compliance) basados en memoria.
+Cualquier ciclo de desarrollo (SDD) a corto plazo debe estar enlazado lógicamente a los objetivos descritos en este Master Plan.
