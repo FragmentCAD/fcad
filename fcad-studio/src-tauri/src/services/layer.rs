@@ -32,3 +32,19 @@ impl LayerService {
         name
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use bevy_ecs::world::World;
+    use fcad_core::infrastructure::ecs::ncs::{LayerStandards, ActiveLayer};
+
+    #[test]
+    fn test_set_active_layer() {
+        let mut world = World::new();
+        let name = "A-WALL".to_string();
+        LayerService::set_active_layer(&mut world, name.clone());
+        let active = world.get_resource::<ActiveLayer>().unwrap();
+        assert_eq!(active.0, name);
+    }
+}

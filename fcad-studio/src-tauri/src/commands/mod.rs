@@ -270,3 +270,22 @@ pub fn set_active_layer(state: tauri::State<'_, AppState>, name: String) -> Stri
     let mut world = state.world.lock().unwrap();
     LayerService::set_active_layer(&mut world, name)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::state::AppState;
+    use std::sync::{Arc, Mutex};
+    use bevy_ecs::world::World;
+    use fcad_core::application::tools::ToolManager;
+
+    pub fn setup_mock_state() -> AppState {
+        AppState {
+            spatial_index: Mutex::new(fcad_core::infrastructure::ecs::spatial::SpatialIndex::new()),
+            render_tx: Mutex::new(std::sync::mpsc::channel().0),
+            tool_manager: Mutex::new(ToolManager::new()),
+            world: Arc::new(Mutex::new(World::new())),
+            current_theme: Mutex::new(fcad_core::domain::theme::Theme::default()),
+        }
+    }
+}

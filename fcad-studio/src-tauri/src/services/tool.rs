@@ -37,3 +37,32 @@ impl ToolService {
         tm.active_tool_name().unwrap_or("none").to_string()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use fcad_core::application::tools::ToolManager;
+
+    #[test]
+    fn test_set_tool() {
+        let mut tm = ToolManager::new();
+        let result = ToolService::set_tool(&mut tm, "line");
+        assert_eq!(result, "line");
+        assert_eq!(ToolService::get_active_tool(&tm), "line");
+    }
+
+    #[test]
+    fn test_clear_tool() {
+        let mut tm = ToolManager::new();
+        ToolService::set_tool(&mut tm, "line");
+        ToolService::set_tool(&mut tm, "none");
+        assert_eq!(ToolService::get_active_tool(&tm), "none");
+    }
+
+    #[test]
+    fn test_unknown_tool() {
+        let mut tm = ToolManager::new();
+        let result = ToolService::set_tool(&mut tm, "invalid");
+        assert!(result.contains("unknown"));
+    }
+}

@@ -32,3 +32,14 @@ impl ThemeService {
         Ok(theme)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_load_non_existent_theme() {
+        let result = ThemeService::load_theme("does-not-exist");
+        assert!(result.is_err());
+    }
+}
