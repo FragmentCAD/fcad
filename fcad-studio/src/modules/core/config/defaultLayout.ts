@@ -6,6 +6,7 @@ export const defaultLayoutModel: IJsonModel = {
     tabEnableRename: false,
     tabSetEnableMaximize: false,
     tabSetTabLocation: "top",
+    tabSetEnableDrop: true,
   },
   layout: {
     type: "row",
@@ -14,12 +15,13 @@ export const defaultLayoutModel: IJsonModel = {
       {
         type: "tabset",
         weight: 20,
+        enableDrop: true,
         children: [{ type: "tab", name: "Properties", component: "properties" }]
       },
       {
         type: "tabset",
         weight: 60,
-        enableDrop: false,
+        enableDrop: true,
         enableDrag: false,
         children: [
           { 
@@ -32,10 +34,26 @@ export const defaultLayoutModel: IJsonModel = {
         ]
       },
       {
-        type: "tabset",
+        type: "row",
         weight: 20,
         children: [
-          { type: "tab", name: "Layers", component: "right-sidebar" }
+          {
+            type: "tabset",
+            weight: 50,
+            enableDrop: true,
+            children: [
+              { type: "tab", name: "Layers", component: "layers" },
+              { type: "tab", name: "Assets", component: "assets" }
+            ]
+          },
+          {
+            type: "tabset",
+            weight: 50,
+            enableDrop: true,
+            children: [
+              { type: "tab", name: "AI Console", component: "ai" }
+            ]
+          }
         ]
       }
     ]

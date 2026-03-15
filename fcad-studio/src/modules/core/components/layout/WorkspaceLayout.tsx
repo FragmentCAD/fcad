@@ -5,7 +5,9 @@ import { defaultLayoutModel } from "../../config/defaultLayout";
 // Components
 import { CanvasViewport } from "@/modules/viewport/components/CanvasViewport";
 import { PropertiesPanel } from "@/modules/properties/components/PropertiesPanel";
-import { RightSidebar } from "@/modules/core/components/layout/RightSidebar";
+import { LayersPanel } from "@/modules/explorer/components/LayersPanel";
+import { AssetsPanel } from "@/modules/explorer/components/AssetsPanel";
+import { AIConsole } from "@/modules/ai-console/components/AIConsole";
 import { DrawingPalette } from "@/modules/tools/components/DrawingPalette";
 
 export const WorkspaceLayout = () => {
@@ -25,8 +27,12 @@ export const WorkspaceLayout = () => {
                 );
             case "properties":
                 return <PropertiesPanel lastHit={lastHit} />;
-            case "right-sidebar":
-                return <RightSidebar />;
+            case "layers":
+                return <LayersPanel />;
+            case "assets":
+                return <AssetsPanel />;
+            case "ai":
+                return <AIConsole />;
             default:
                 return null;
         }
