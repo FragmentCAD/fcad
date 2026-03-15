@@ -1,4 +1,5 @@
 import { render } from "preact";
+import "flexlayout-react/style/dark.css";
 import "./App.css";
 import "./modules/core/lib/i18n";
 import App from "./App";

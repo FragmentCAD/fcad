@@ -109,3 +109,57 @@
     color: var(--foreground);
   }
 }
+
+/* Force all structural containers to be transparent */
+.flexlayout__layout,
+.flexlayout__tabset,
+.flexlayout__tabset_content,
+.flexlayout__tabset_tabbar_outer,
+.flexlayout__tabset_tabbar_inner,
+.flexlayout__tabset_header,
+.flexlayout__tab,
+.flexlayout__tab_overflow_button,
+.flexlayout__border,
+.flexlayout__border_left,
+.flexlayout__border_right,
+.flexlayout__border_top,
+.flexlayout__border_bottom,
+.flexlayout__border_inner,
+.flexlayout__border_button {
+    background-color: transparent !important;
+}
+
+.flexlayout__tab_button {
+    background-color: transparent !important;
+    color: var(--muted-foreground) !important;
+    border-bottom: 2px solid transparent !important;
+}
+
+.flexlayout__tab_button_active {
+    background-color: transparent !important;
+    color: var(--primary) !important;
+    border-bottom: 2px solid var(--primary) !important;
+    font-weight: 600;
+}
+
+/* Glassmorphism for headers only - avoid solid colors */
+.flexlayout__tabset_header {
+    background-color: rgba(0, 0, 0, 0.2) !important;
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--border) !important;
+}
+
+.flexlayout__splitter {
+    background-color: var(--border) !important;
+    opacity: 0.3;
+    transition: opacity 0.2s;
+}
+
+.flexlayout__splitter:hover {
+    opacity: 1;
+    background-color: var(--primary) !important;
+}
+
+.flexlayout__border_left, .flexlayout__border_right, .flexlayout__border_top, .flexlayout__border_bottom {
+    border: 1px solid var(--border) !important;
+}
