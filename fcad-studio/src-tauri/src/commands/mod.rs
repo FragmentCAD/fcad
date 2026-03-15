@@ -1,6 +1,8 @@
 use tauri;
 use crate::state::AppState;
 use fcad_core::application::snap::{SnapState, WorldGeometryProvider};
+use crate::services::layer::LayerService;
+use crate::services::viewport::ViewportService;
 use crate::services::theme::ThemeService;
 use crate::services::snap::SnapService;
 use crate::services::tool::ToolService;
@@ -47,19 +49,17 @@ pub fn hit_test(state: tauri::State<'_, AppState>, x: f64, y: f64) -> Vec<String
 pub fn update_viewport_rect(window: tauri::Window, state: tauri::State<'_, AppState>, x: f64, y: f64, width: f64, height: f64) {
     let factor = window.scale_factor().unwrap_or(1.0);
     
-    if let Ok(tx) = state.render_tx.lock() {
-        let _ = tx.send(fcad_renderer::RenderMessage::ViewportUpdate(fcad_renderer::ViewportRect {
-            x: (x * factor) as u32,
-            y: (y * factor) as u32,
-            width: (width * factor) as u32,
-            height: (height * factor) as u32,
-        }));
-    }
-
     let mut world = state.world.lock().unwrap();
     if let Some(mut cam) = world.get_resource_mut::<fcad_core::domain::viewport::Camera>() {
-        cam.screen_width = (width * factor) as f32;
-        cam.screen_height = (height * factor) as f32;
+        let tx = state.render_tx.lock().unwrap();
+        ViewportService::update_viewport_rect(
+            &tx, 
+            &mut cam, 
+            (x * factor) as u32, 
+            (y * factor) as u32, 
+            (width * factor) as u32, 
+            (height * factor) as u32
+        );
     }
 }
 
@@ -234,30 +234,12 @@ pub fn get_current_theme(state: tauri::State<'_, AppState>) -> fcad_core::domain
 
 #[tauri::command]
 pub fn get_themes_list() -> Vec<String> {
-    let themes_dir = std::path::Path::new("..").join("..").join("fcad-assets").join("themes");
-    let mut themes = Vec::new();
-    
-    if let Ok(entries) = std::fs::read_dir(themes_dir) {
-        for entry in entries.flatten() {
-            if let Some(name) = entry.file_name().to_str() {
-                if name.ends_with(".json") {
-                    themes.push(name.replace(".json", ""));
-                }
-            }
-        }
-    }
-    themes
+    ThemeService::get_themes_list()
 }
 
 #[tauri::command]
 pub fn switch_theme(state: tauri::State<'_, AppState>, theme_name: String) -> Result<fcad_core::domain::theme::Theme, String> {
-    let theme_path = std::path::Path::new("..").join("..").join("fcad-assets").join("themes").join(format!("{}.json", theme_name));
-    
-    let content = std::fs::read_to_string(&theme_path)
-        .map_err(|e| format!("No se pudo leer el tema '{}': {}", theme_name, e))?;
-    
-    let theme: fcad_core::domain::theme::Theme = serde_json::from_str(&content)
-        .map_err(|e| format!("Error al parsear el tema '{}': {}", theme_name, e))?;
+    let theme = ThemeService::load_theme(&theme_name)?;
     
     if let Ok(mut current) = state.current_theme.lock() {
         *current = theme.clone();
@@ -273,39 +255,18 @@ pub fn switch_theme(state: tauri::State<'_, AppState>, theme_name: String) -> Re
 #[tauri::command]
 pub fn get_layers(state: tauri::State<'_, AppState>) -> Vec<fcad_core::infrastructure::ecs::ncs::NcsLayerDef> {
     let world = state.world.lock().unwrap();
-    use fcad_core::infrastructure::ecs::ncs::LayerStandards;
-    
-    if let Some(standards) = world.get_resource::<LayerStandards>() {
-        standards.get_layers_by_discipline("A")
-    } else {
-        Vec::new()
-    }
+    LayerService::get_layers(&world)
 }
 
 #[tauri::command]
 pub fn get_adapted_layers(state: tauri::State<'_, AppState>) -> Vec<fcad_core::infrastructure::ecs::ncs::NcsLayerDef> {
     let world = state.world.lock().unwrap();
     let theme = state.current_theme.lock().unwrap().clone();
-    use fcad_core::infrastructure::ecs::ncs::LayerStandards;
-    
-    if let Some(standards) = world.get_resource::<LayerStandards>() {
-        standards.get_layers_by_discipline("A")
-            .into_iter()
-            .map(|mut layer| {
-                layer.color_hex = theme.adapt_layer_color(&layer.color_hex);
-                layer
-            })
-            .collect()
-    } else {
-        Vec::new()
-    }
+    LayerService::get_adapted_layers(&world, &theme)
 }
 
 #[tauri::command]
 pub fn set_active_layer(state: tauri::State<'_, AppState>, name: String) -> String {
     let mut world = state.world.lock().unwrap();
-    use fcad_core::infrastructure::ecs::ncs::ActiveLayer;
-    
-    world.insert_resource(ActiveLayer(name.clone()));
-    name
+    LayerService::set_active_layer(&mut world, name)
 }
