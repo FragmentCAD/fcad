@@ -110,56 +110,104 @@
   }
 }
 
-/* Force all structural containers to be transparent */
-.flexlayout__layout,
-.flexlayout__tabset,
-.flexlayout__tabset_content,
-.flexlayout__tabset_tabbar_outer,
-.flexlayout__tabset_tabbar_inner,
-.flexlayout__tabset_header,
-.flexlayout__tab,
-.flexlayout__tab_overflow_button,
+/* Root Flexlayout layer (needs to be transparent to show WGPU) */
+.flexlayout__layout {
+    background-color: transparent !important;
+}
+
+/* Base containers shouldn't have solid backgrounds locking rendering */
 .flexlayout__border,
 .flexlayout__border_left,
 .flexlayout__border_right,
 .flexlayout__border_top,
 .flexlayout__border_bottom,
 .flexlayout__border_inner,
-.flexlayout__border_button {
+.flexlayout__border_button,
+.flexlayout__tabset,
+.flexlayout__tabset_content,
+.flexlayout__tab {
     background-color: transparent !important;
 }
 
+/* Glassmorphism for tab headers */
+.flexlayout__tabset_tabbar_outer,
+.flexlayout__tabset_header {
+    background-color: var(--card) !important;
+    position: relative;
+    box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+}
+
+.flexlayout__tabset_tabbar_inner {
+    padding: 2px 4px !important;
+    display: flex;
+    align-items: flex-end;
+}
+
+/* Capsule design for inactive tabs */
 .flexlayout__tab_button {
     background-color: transparent !important;
     color: var(--muted-foreground) !important;
-    border-bottom: 2px solid transparent !important;
+    border-radius: var(--radius-sm) !important;
+    margin: 2px 2px 2px 2px !important;
+    padding: 0 12px !important;
+    height: calc(100% - 4px) !important;
+    border: none !important;
+    transition: all 0.2s ease-in-out;
 }
 
+.flexlayout__tab_button:hover {
+    background-color: var(--accent) !important;
+    color: var(--accent-foreground) !important;
+}
+
+/* Capsule design for active tab */
 .flexlayout__tab_button_active {
-    background-color: transparent !important;
+    background-color: var(--background) !important;
     color: var(--primary) !important;
-    border-bottom: 2px solid var(--primary) !important;
-    font-weight: 600;
+    box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+    font-weight: 500;
 }
 
-/* Glassmorphism for headers only - avoid solid colors */
-.flexlayout__tabset_header {
-    background-color: rgba(0, 0, 0, 0.2) !important;
-    backdrop-filter: blur(8px);
-    border-bottom: 1px solid var(--border) !important;
-}
-
+/* Clean splitter lines */
 .flexlayout__splitter {
-    background-color: var(--border) !important;
-    opacity: 0.3;
-    transition: opacity 0.2s;
+    background-color: transparent !important;
+    transition: background-color 0.2s;
+    position: relative;
 }
 
-.flexlayout__splitter:hover {
-    opacity: 1;
+/* Splitter visual indicator */
+.flexlayout__splitter::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background-color: var(--border);
+    transition: all 0.2s ease;
+}
+
+.flexlayout__splitter_vert::before {
+    width: 2px;
+    height: calc(100% - 8px);
+    border-radius: 2px;
+}
+
+.flexlayout__splitter_horz::before {
+    height: 2px;
+    width: calc(100% - 8px);
+    border-radius: 2px;
+}
+
+.flexlayout__splitter:hover::before,
+.flexlayout__splitter_drag::before {
     background-color: var(--primary) !important;
+    box-shadow: 0 0 0 1px var(--primary);
 }
 
-.flexlayout__border_left, .flexlayout__border_right, .flexlayout__border_top, .flexlayout__border_bottom {
-    border: 1px solid var(--border) !important;
+/* Drag rect functionality */
+.flexlayout__drag_rect {
+    background-color: var(--primary) !important;
+    opacity: 0.2 !important;
+    border: 2px dashed var(--primary) !important;
+    border-radius: var(--radius) !important;
 }

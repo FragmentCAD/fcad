@@ -22,14 +22,12 @@ export const defaultLayoutModel: IJsonModel = {
         type: "tabset",
         weight: 60,
         enableDrop: true,
-        enableDrag: false,
         children: [
           { 
             type: "tab", 
             name: "Canvas", 
             component: "canvas", 
-            enableClose: false, 
-            enableDrag: false 
+            enableClose: false
           }
         ]
       },
