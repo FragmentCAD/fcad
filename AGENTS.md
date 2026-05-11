@@ -56,6 +56,12 @@ Referencia normativa:
 - `docs/architecture/gpu-resource-lifecycle.md`
 - `docs/architecture/configuration-and-standards-model.md`
 - `docs/architecture/testing-strategy.md`
+- `docs/architecture/cad-engine-runtime-model.md`
+- `docs/architecture/spatial-index-and-snap-model.md`
+- `docs/architecture/fcad-ai-package-model.md`
+- `docs/architecture/ai-context-store.md`
+- `docs/architecture/agent-workflow-and-solo-mode.md`
+- `docs/architecture/shared-contracts-model.md`
 - `docs/roadmap/ai-first-v0-roadmap.md`
 
 Skills locales obligatorias para agentes:
@@ -65,6 +71,10 @@ Skills locales obligatorias para agentes:
 - `skills/fcad-renderer-architecture/SKILL.md` — cargarla cuando una tarea toque `fcad-renderer`, WGPU, buffers, shaders, preview o invalidaciones.
 - `skills/fcad-config-assets/SKILL.md` — cargarla cuando una tarea toque `fcad-assets`, estándares, schemas, perfiles o configuración.
 - `skills/fcad-testing-strategy/SKILL.md` — cargarla cuando una tarea agregue/cambie tests o contratos de validación.
+- `skills/fcad-runtime-model/SKILL.md` — cargarla cuando una tarea toque `CadEngine`, `AppState`, locks, snapshots, command bus o runtime interno.
+- `skills/fcad-spatial-index/SKILL.md` — cargarla cuando una tarea toque `SpatialIndex`, snap/osnap, hit-test, selección o erase.
+- `skills/fcad-ai-architecture/SKILL.md` — cargarla cuando una tarea toque `fcad-ai`, agente, planning, SOLO, boosts, MCP o workflows IA.
+- `skills/fcad-ai-memory/SKILL.md` — cargarla cuando una tarea toque memoria IA, context store, RAG, retrieval, observaciones o Engram.
 
 ## 3. Dinámica del Orquestador y Reglas Operativas
 1.  **TDD Iterativo y Verificado:** Para flujos complejos de diseño (ej. *precision-drawing-engine* e *interactive tests*) usamos metodologías TDD. Si escribes funciones nuevas, implementa la batería de pruebas en Rust.

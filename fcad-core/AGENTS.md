@@ -38,6 +38,15 @@ El servidor MCP corre en un Runtime asíncrono (`tokio`). El ECS corre en un buc
 
 *   **Prohibido:** Mutar el `World` directamente desde una tarea `async`.
 *   **Obligatorio:** Usar canales `mpsc` para enviar comandos de intención (`McpCommand`) desde el servidor hacia el bucle principal.
+*   **Runtime interno:** Toda coordinación de documento debe pasar por `CadEngine`/CommandBus; `AppState`, MCP, Studio y AI son adaptadores.
+*   **Índices derivados:** `SpatialIndex`, snap y hit-test derivan del ECS y deben sincronizarse por eventos/invalidation, nunca como verdad paralela.
+
+### Referencias normativas
+* `docs/architecture/cad-engine-runtime-model.md`
+* `docs/architecture/spatial-index-and-snap-model.md`
+* `docs/architecture/shared-contracts-model.md`
+* `skills/fcad-runtime-model/SKILL.md`
+* `skills/fcad-spatial-index/SKILL.md`
 
 ## 4. Flujo de Trabajo (Cargo)
 
