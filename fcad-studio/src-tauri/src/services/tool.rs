@@ -1,8 +1,8 @@
-use fcad_core::application::tools::ToolManager;
-use fcad_core::application::tools::space_tool::SpaceTool;
+use fcad_core::application::tools::erase_tool::EraseTool;
 use fcad_core::application::tools::line_tool::LineTool;
 use fcad_core::application::tools::rect_tool::RectTool;
-use fcad_core::application::tools::erase_tool::EraseTool;
+use fcad_core::application::tools::space_tool::SpaceTool;
+use fcad_core::application::tools::ToolManager;
 
 pub struct ToolService;
 

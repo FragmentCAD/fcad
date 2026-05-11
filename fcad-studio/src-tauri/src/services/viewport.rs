@@ -5,7 +5,14 @@ use std::sync::mpsc::Sender;
 pub struct ViewportService;
 
 impl ViewportService {
-    pub fn update_viewport_rect(tx: &Sender<RenderMessage>, cam: &mut Camera, x: u32, y: u32, width: u32, height: u32) {
+    pub fn update_viewport_rect(
+        tx: &Sender<RenderMessage>,
+        cam: &mut Camera,
+        x: u32,
+        y: u32,
+        width: u32,
+        height: u32,
+    ) {
         let _ = tx.send(RenderMessage::ViewportUpdate(fcad_renderer::ViewportRect {
             x,
             y,

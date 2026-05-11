@@ -1,11 +1,11 @@
+use bevy_ecs::prelude::*;
+use fcad_core::domain::architecture::walls;
+use fcad_core::domain::{Geometry, ProjectMetadata};
+use fcad_core::infrastructure::ecs::spatial::{sync_spatial_index_system, SpatialIndex};
+use fcad_core::mcp::server::{McpCommand, McpServer};
 use std::env;
 use tokio::sync::mpsc;
-use fcad_core::mcp::server::{McpServer, McpCommand};
-use bevy_ecs::prelude::*;
-use fcad_core::domain::{ProjectMetadata, Geometry};
-use fcad_core::infrastructure::ecs::spatial::{SpatialIndex, sync_spatial_index_system};
-use fcad_core::domain::architecture::walls;
-use tracing::{info, error, Level};
+use tracing::{error, info, Level};
 use tracing_subscriber::FmtSubscriber;
 
 #[tokio::main]
@@ -19,10 +19,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing::subscriber::set_global_default(subscriber)?;
 
     let args: Vec<String> = env::args().collect();
-    
+
     if args.len() > 1 && args[1] == "serve" {
         info!("FragmentCAD MCP Server starting...");
-        
+
         // Inicializar ECS
         let mut world = World::new();
         world.insert_resource(SpatialIndex::new());
@@ -49,7 +49,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             // 1. Procesar comandos del canal MPSC (Tarea 4.2 Crítica)
             while let Ok(cmd) = cmd_rx.try_recv() {
                 match cmd {
-                    McpCommand::GenerateWall { p1, p2, thickness, layer } => {
+                    McpCommand::GenerateWall {
+                        p1,
+                        p2,
+                        thickness,
+                        layer,
+                    } => {
                         info!("MCP: Generating wall from {:?} to {:?}", p1, p2);
                         walls::generate_wall(&mut world, p1, p2, thickness, &layer);
                     }
@@ -66,11 +71,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             // 3. Control de FPS (MVP: 10ms por tick)
             tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
         }
-
     } else {
         println!("FragmentCAD Core Engine");
         println!("Usage: fcad-core serve");
     }
-    
+
     Ok(())
 }

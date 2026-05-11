@@ -30,32 +30,52 @@ pub fn generate_grid_vertices(camera: &Camera, grid_spacing: f32) -> (Vec<Vertex
     // 3. Generar líneas verticales (X constante)
     let mut x = (min_x / effective_spacing).floor() * effective_spacing;
     while x <= max_x {
-        let alpha = if (x / (effective_spacing * 10.0)).abs() < 1e-4 { 0.4 } else { 0.1 };
+        let alpha = if (x / (effective_spacing * 10.0)).abs() < 1e-4 {
+            0.4
+        } else {
+            0.1
+        };
         let color = [0.5, 0.5, 0.5, alpha]; // Color de grilla tenue
-        
+
         let start_idx = vertices.len() as u16;
-        vertices.push(Vertex { position: [x, min_y, 0.0], color });
-        vertices.push(Vertex { position: [x, max_y, 0.0], color });
-        
+        vertices.push(Vertex {
+            position: [x, min_y, 0.0],
+            color,
+        });
+        vertices.push(Vertex {
+            position: [x, max_y, 0.0],
+            color,
+        });
+
         indices.push(start_idx);
         indices.push(start_idx + 1);
-        
+
         x += effective_spacing;
     }
 
     // 4. Generar líneas horizontales (Y constante)
     let mut y = (min_y / effective_spacing).floor() * effective_spacing;
     while y <= max_y {
-        let alpha = if (y / (effective_spacing * 10.0)).abs() < 1e-4 { 0.4 } else { 0.1 };
+        let alpha = if (y / (effective_spacing * 10.0)).abs() < 1e-4 {
+            0.4
+        } else {
+            0.1
+        };
         let color = [0.5, 0.5, 0.5, alpha];
-        
+
         let start_idx = vertices.len() as u16;
-        vertices.push(Vertex { position: [min_x, y, 0.0], color });
-        vertices.push(Vertex { position: [max_x, y, 0.0], color });
-        
+        vertices.push(Vertex {
+            position: [min_x, y, 0.0],
+            color,
+        });
+        vertices.push(Vertex {
+            position: [max_x, y, 0.0],
+            color,
+        });
+
         indices.push(start_idx);
         indices.push(start_idx + 1);
-        
+
         y += effective_spacing;
     }
 
@@ -70,25 +90,30 @@ mod tests {
     fn test_grid_generation_produces_vertices() {
         let camera = Camera::new(800.0, 600.0);
         let (vertices, indices) = generate_grid_vertices(&camera, 1.0);
-        
+
         assert!(!vertices.is_empty(), "La grilla debería tener vértices");
         assert!(!indices.is_empty(), "La grilla debería tener índices");
         // En una pantalla de 800x600 con espaciado 10, esperaríamos aprox 80 + 60 líneas (x2 vértices)
-        assert!(vertices.len() > 10, "Debería haber un número razonable de vértices");
+        assert!(
+            vertices.len() > 10,
+            "Debería haber un número razonable de vértices"
+        );
     }
 
     #[test]
     fn test_grid_spacing_scales_with_zoom() {
         let mut camera = Camera::new(800.0, 600.0);
-        
+
         // Zoom normal (1.0) -> Espaciado 1.0 -> 10.0 (según el loop while)
         let (_, indices_norm) = generate_grid_vertices(&camera, 1.0);
-        
+
         // Zoom out extremo (0.01) -> Debería mostrar menos líneas (grilla más grande)
         camera.zoom = 0.01;
         let (_, indices_out) = generate_grid_vertices(&camera, 1.0);
-        
-        assert!(indices_out.len() <= indices_norm.len() * 2, 
-            "La grilla no debería saturarse de líneas al alejar el zoom");
+
+        assert!(
+            indices_out.len() <= indices_norm.len() * 2,
+            "La grilla no debería saturarse de líneas al alejar el zoom"
+        );
     }
 }

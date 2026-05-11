@@ -57,7 +57,7 @@ mod tests {
     #[test]
     fn test_in_memory_standards_provider() {
         let mut provider = InMemoryStandardsProvider::new();
-        
+
         provider.add_layer(LayerStandard {
             name: "A-WALL".to_string(),
             description: "Architectural Walls".to_string(),
@@ -65,7 +65,7 @@ mod tests {
             line_weight: 0.35,
             line_type: "Continuous".to_string(),
         });
-        
+
         provider.add_layer(LayerStandard {
             name: "A-DOOR".to_string(),
             description: "Architectural Doors".to_string(),
@@ -75,7 +75,9 @@ mod tests {
         });
 
         // Test individual lookup
-        let wall_std = provider.get_layer_standard("A-WALL").expect("Layer A-WALL should exist");
+        let wall_std = provider
+            .get_layer_standard("A-WALL")
+            .expect("Layer A-WALL should exist");
         assert_eq!(wall_std.color_hex, "#FF0000");
 
         let missing = provider.get_layer_standard("X-MISSING");

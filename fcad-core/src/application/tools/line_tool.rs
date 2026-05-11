@@ -93,20 +93,28 @@ mod tests {
     #[test]
     fn test_line_tool_cycle() {
         let mut tool = LineTool::new();
-        
+
         let si = SpatialIndex::new();
         // 1. Move before start
         let resp = tool.on_input(&InputEvent::PointerMove { x: 10.0, y: 10.0 }, &si);
         assert_eq!(resp, ToolResponse::Ignored);
 
         // 2. First Click
-        let resp = tool.on_input(&InputEvent::Click {
-            button: MouseButton::Left,
-            x: 0.0,
-            y: 0.0,
-        }, &si);
+        let resp = tool.on_input(
+            &InputEvent::Click {
+                button: MouseButton::Left,
+                x: 0.0,
+                y: 0.0,
+            },
+            &si,
+        );
         assert_eq!(resp, ToolResponse::Consumed);
-        assert_eq!(tool.state, LineToolState::Drawing { start_point: [0.0, 0.0] });
+        assert_eq!(
+            tool.state,
+            LineToolState::Drawing {
+                start_point: [0.0, 0.0]
+            }
+        );
 
         // 3. Move during drawing (Rubber-banding)
         let resp = tool.on_input(&InputEvent::PointerMove { x: 50.0, y: 50.0 }, &si);
@@ -118,11 +126,14 @@ mod tests {
         }
 
         // 4. Second Click (Completion)
-        let resp = tool.on_input(&InputEvent::Click {
-            button: MouseButton::Left,
-            x: 100.0,
-            y: 0.0,
-        }, &si);
+        let resp = tool.on_input(
+            &InputEvent::Click {
+                button: MouseButton::Left,
+                x: 100.0,
+                y: 0.0,
+            },
+            &si,
+        );
         assert_eq!(
             resp,
             ToolResponse::Completed(ToolResult::Line {

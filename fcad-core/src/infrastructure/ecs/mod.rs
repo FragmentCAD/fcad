@@ -1,10 +1,10 @@
 pub mod components;
-pub mod spatial;
 pub mod ncs;
+pub mod spatial;
 
 #[cfg(test)]
-mod tests;
+mod hit_test_tests;
 #[cfg(test)]
 mod ncs_tests;
 #[cfg(test)]
-mod hit_test_tests;
+mod tests;

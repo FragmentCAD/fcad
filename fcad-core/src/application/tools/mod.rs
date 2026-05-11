@@ -1,10 +1,10 @@
-pub mod space_tool;
+pub mod erase_tool;
 pub mod line_tool;
 pub mod rect_tool;
-pub mod erase_tool;
+pub mod space_tool;
 
 use super::input::InputEvent;
-use super::snap::{SnapEngine, SnapResult, GeometryProvider, SnapType};
+use super::snap::{GeometryProvider, SnapEngine, SnapResult, SnapType};
 use crate::infrastructure::ecs::spatial::SpatialIndex;
 
 /// Respuesta que una herramienta devuelve al ToolManager tras procesar un evento.
@@ -30,15 +30,9 @@ pub enum ToolResult {
         space_kind: String,
     },
     /// Un segmento de línea simple.
-    Line {
-        start: [f32; 2],
-        end: [f32; 2],
-    },
+    Line { start: [f32; 2], end: [f32; 2] },
     /// Un rectángulo definido por dos esquinas opuestas.
-    Rectangle {
-        p1: [f32; 2],
-        p2: [f32; 2],
-    },
+    Rectangle { p1: [f32; 2], p2: [f32; 2] },
     /// Una lista de entidades que deben ser borradas.
     Deleted(Vec<bevy_ecs::entity::Entity>),
 }
@@ -121,7 +115,14 @@ impl ToolManager {
             // Interceptamos y aplicamos Snap a eventos con coordenadas
             match &mut event_to_process {
                 InputEvent::PointerMove { x, y } | InputEvent::Click { x, y, .. } => {
-                    let snap = self.snap_engine.snap_coordinate(*x, *y, self.last_clicked_point, spatial_index, provider, zoom_level);
+                    let snap = self.snap_engine.snap_coordinate(
+                        *x,
+                        *y,
+                        self.last_clicked_point,
+                        spatial_index,
+                        provider,
+                        zoom_level,
+                    );
                     *x = snap.point[0];
                     *y = snap.point[1];
                     if snap.snap_type != SnapType::None {
@@ -132,7 +133,7 @@ impl ToolManager {
             }
 
             let response = tool.on_input(&event_to_process, spatial_index);
-            
+
             // Si fue un Click exitoso, actualizamos el punto de referencia para Ortho
             if let InputEvent::Click { button, x, y } = &event_to_process {
                 if *button == crate::application::input::MouseButton::Left {
@@ -164,9 +165,9 @@ pub enum ToolManagerResponse {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use bevy_ecs::entity::Entity;
-    use crate::domain::Geometry;
     use crate::application::input::{InputEvent, MouseButton};
+    use crate::domain::Geometry;
+    use bevy_ecs::entity::Entity;
 
     // Mock Tool para testing
     struct MockTool {
@@ -207,7 +208,9 @@ mod tests {
     // Mock de GeometryProvider para tests
     struct DummyProvider;
     impl GeometryProvider for DummyProvider {
-        fn get_geometry(&self, _entity: Entity) -> Option<Geometry> { None }
+        fn get_geometry(&self, _entity: Entity) -> Option<Geometry> {
+            None
+        }
     }
 
     #[test]

@@ -1,7 +1,7 @@
-use bevy_ecs::prelude::*;
-use crate::infrastructure::ecs::spatial::{SpatialIndex, sync_spatial_index_system};
+use crate::domain::math::primitives::{Line, Point2D};
 use crate::domain::Geometry;
-use crate::domain::math::primitives::{Point2D, Line};
+use crate::infrastructure::ecs::spatial::{sync_spatial_index_system, SpatialIndex};
+use bevy_ecs::prelude::*;
 
 #[test]
 fn test_hit_test_line_intersection() {
@@ -22,7 +22,7 @@ fn test_hit_test_line_intersection() {
 
     // 3. Query a point in the middle (5.0, 5.0)
     let spatial_index = world.resource::<SpatialIndex>();
-    
+
     println!("Entities in index: {}", spatial_index.entity_bounds.len());
     for (id, bounds) in &spatial_index.entity_bounds {
         println!("Entity {:?} has bounds {:?}", id, bounds);
@@ -34,6 +34,10 @@ fn test_hit_test_line_intersection() {
     let results_total = spatial_index.query_area(-1.0, -1.0, 11.0, 11.0);
     println!("Results for total area: {:?}", results_total);
 
-    assert_eq!(results_total.len(), 1, "Should at least find it when querying the whole area");
+    assert_eq!(
+        results_total.len(),
+        1,
+        "Should at least find it when querying the whole area"
+    );
     assert_eq!(results.len(), 1, "Should find one entity at (5,5)");
 }

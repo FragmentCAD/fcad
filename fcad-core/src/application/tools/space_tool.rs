@@ -97,7 +97,9 @@ impl Tool for SpaceTool {
                     }
                     SpaceToolState::Drawing { vertices } => {
                         // Si el clic está cerca del primer punto y hay al menos 3 vértices, cerrar
-                        if vertices.len() >= 3 && Self::is_near_first(vertices, point, self.close_threshold) {
+                        if vertices.len() >= 3
+                            && Self::is_near_first(vertices, point, self.close_threshold)
+                        {
                             let result = ToolResult::Space {
                                 vertices: vertices.clone(),
                                 space_kind: "Unspecified".to_string(),
@@ -157,11 +159,14 @@ mod tests {
         tool.on_start();
 
         let si = SpatialIndex::new();
-        let response = tool.on_input(&InputEvent::Click {
-            button: MouseButton::Left,
-            x: 10.0,
-            y: 20.0,
-        }, &si);
+        let response = tool.on_input(
+            &InputEvent::Click {
+                button: MouseButton::Left,
+                x: 10.0,
+                y: 20.0,
+            },
+            &si,
+        );
 
         assert_eq!(response, ToolResponse::Consumed);
         assert!(matches!(tool.state, SpaceToolState::Drawing { .. }));
@@ -173,21 +178,30 @@ mod tests {
         tool.on_start();
 
         let si = SpatialIndex::new();
-        tool.on_input(&InputEvent::Click {
-            button: MouseButton::Left,
-            x: 0.0,
-            y: 0.0,
-        }, &si);
-        tool.on_input(&InputEvent::Click {
-            button: MouseButton::Left,
-            x: 100.0,
-            y: 0.0,
-        }, &si);
-        tool.on_input(&InputEvent::Click {
-            button: MouseButton::Left,
-            x: 100.0,
-            y: 100.0,
-        }, &si);
+        tool.on_input(
+            &InputEvent::Click {
+                button: MouseButton::Left,
+                x: 0.0,
+                y: 0.0,
+            },
+            &si,
+        );
+        tool.on_input(
+            &InputEvent::Click {
+                button: MouseButton::Left,
+                x: 100.0,
+                y: 0.0,
+            },
+            &si,
+        );
+        tool.on_input(
+            &InputEvent::Click {
+                button: MouseButton::Left,
+                x: 100.0,
+                y: 100.0,
+            },
+            &si,
+        );
 
         if let SpaceToolState::Drawing { ref vertices } = tool.state {
             assert_eq!(vertices.len(), 3);
@@ -203,28 +217,40 @@ mod tests {
 
         // Triángulo
         let si = SpatialIndex::new();
-        tool.on_input(&InputEvent::Click {
-            button: MouseButton::Left,
-            x: 0.0,
-            y: 0.0,
-        }, &si);
-        tool.on_input(&InputEvent::Click {
-            button: MouseButton::Left,
-            x: 100.0,
-            y: 0.0,
-        }, &si);
-        tool.on_input(&InputEvent::Click {
-            button: MouseButton::Left,
-            x: 50.0,
-            y: 100.0,
-        }, &si);
+        tool.on_input(
+            &InputEvent::Click {
+                button: MouseButton::Left,
+                x: 0.0,
+                y: 0.0,
+            },
+            &si,
+        );
+        tool.on_input(
+            &InputEvent::Click {
+                button: MouseButton::Left,
+                x: 100.0,
+                y: 0.0,
+            },
+            &si,
+        );
+        tool.on_input(
+            &InputEvent::Click {
+                button: MouseButton::Left,
+                x: 50.0,
+                y: 100.0,
+            },
+            &si,
+        );
 
         // Clic cerca del primer punto para cerrar
-        let response = tool.on_input(&InputEvent::Click {
-            button: MouseButton::Left,
-            x: 1.0,
-            y: 1.0,
-        }, &si);
+        let response = tool.on_input(
+            &InputEvent::Click {
+                button: MouseButton::Left,
+                x: 1.0,
+                y: 1.0,
+            },
+            &si,
+        );
 
         assert!(
             matches!(response, ToolResponse::Completed(ToolResult::Space { ref vertices, .. }) if vertices.len() == 3),
@@ -240,27 +266,39 @@ mod tests {
         tool.on_start();
 
         let si = SpatialIndex::new();
-        tool.on_input(&InputEvent::Click {
-            button: MouseButton::Left,
-            x: 0.0,
-            y: 0.0,
-        }, &si);
-        tool.on_input(&InputEvent::Click {
-            button: MouseButton::Left,
-            x: 100.0,
-            y: 0.0,
-        }, &si);
-        tool.on_input(&InputEvent::Click {
-            button: MouseButton::Left,
-            x: 100.0,
-            y: 100.0,
-        }, &si);
+        tool.on_input(
+            &InputEvent::Click {
+                button: MouseButton::Left,
+                x: 0.0,
+                y: 0.0,
+            },
+            &si,
+        );
+        tool.on_input(
+            &InputEvent::Click {
+                button: MouseButton::Left,
+                x: 100.0,
+                y: 0.0,
+            },
+            &si,
+        );
+        tool.on_input(
+            &InputEvent::Click {
+                button: MouseButton::Left,
+                x: 100.0,
+                y: 100.0,
+            },
+            &si,
+        );
 
-        let response = tool.on_input(&InputEvent::Click {
-            button: MouseButton::Right,
-            x: 0.0,
-            y: 0.0,
-        }, &si);
+        let response = tool.on_input(
+            &InputEvent::Click {
+                button: MouseButton::Right,
+                x: 0.0,
+                y: 0.0,
+            },
+            &si,
+        );
 
         assert!(matches!(response, ToolResponse::Completed(_)));
     }
@@ -271,22 +309,31 @@ mod tests {
         tool.on_start();
 
         let si = SpatialIndex::new();
-        tool.on_input(&InputEvent::Click {
-            button: MouseButton::Left,
-            x: 0.0,
-            y: 0.0,
-        }, &si);
-        tool.on_input(&InputEvent::Click {
-            button: MouseButton::Left,
-            x: 100.0,
-            y: 0.0,
-        }, &si);
+        tool.on_input(
+            &InputEvent::Click {
+                button: MouseButton::Left,
+                x: 0.0,
+                y: 0.0,
+            },
+            &si,
+        );
+        tool.on_input(
+            &InputEvent::Click {
+                button: MouseButton::Left,
+                x: 100.0,
+                y: 0.0,
+            },
+            &si,
+        );
 
-        let response = tool.on_input(&InputEvent::Click {
-            button: MouseButton::Right,
-            x: 0.0,
-            y: 0.0,
-        }, &si);
+        let response = tool.on_input(
+            &InputEvent::Click {
+                button: MouseButton::Right,
+                x: 0.0,
+                y: 0.0,
+            },
+            &si,
+        );
 
         assert_eq!(response, ToolResponse::Ignored);
     }
@@ -297,11 +344,14 @@ mod tests {
         tool.on_start();
 
         let si = SpatialIndex::new();
-        tool.on_input(&InputEvent::Click {
-            button: MouseButton::Left,
-            x: 0.0,
-            y: 0.0,
-        }, &si);
+        tool.on_input(
+            &InputEvent::Click {
+                button: MouseButton::Left,
+                x: 0.0,
+                y: 0.0,
+            },
+            &si,
+        );
 
         let response = tool.on_input(&InputEvent::PointerMove { x: 50.0, y: 30.0 }, &si);
 
@@ -318,16 +368,22 @@ mod tests {
         tool.on_start();
 
         let si = SpatialIndex::new();
-        tool.on_input(&InputEvent::Click {
-            button: MouseButton::Left,
-            x: 0.0,
-            y: 0.0,
-        }, &si);
-        tool.on_input(&InputEvent::Click {
-            button: MouseButton::Left,
-            x: 100.0,
-            y: 0.0,
-        }, &si);
+        tool.on_input(
+            &InputEvent::Click {
+                button: MouseButton::Left,
+                x: 0.0,
+                y: 0.0,
+            },
+            &si,
+        );
+        tool.on_input(
+            &InputEvent::Click {
+                button: MouseButton::Left,
+                x: 100.0,
+                y: 0.0,
+            },
+            &si,
+        );
 
         let response = tool.on_input(&InputEvent::PointerMove { x: 100.0, y: 100.0 }, &si);
 
@@ -345,15 +401,21 @@ mod tests {
         tool.on_start();
 
         let si = SpatialIndex::new();
-        tool.on_input(&InputEvent::Click {
-            button: MouseButton::Left,
-            x: 0.0,
-            y: 0.0,
-        }, &si);
+        tool.on_input(
+            &InputEvent::Click {
+                button: MouseButton::Left,
+                x: 0.0,
+                y: 0.0,
+            },
+            &si,
+        );
 
-        let response = tool.on_input(&InputEvent::KeyDown {
-            key: "Escape".to_string(),
-        }, &si);
+        let response = tool.on_input(
+            &InputEvent::KeyDown {
+                key: "Escape".to_string(),
+            },
+            &si,
+        );
 
         assert_eq!(response, ToolResponse::Consumed);
         assert_eq!(tool.state, SpaceToolState::WaitingForStart);

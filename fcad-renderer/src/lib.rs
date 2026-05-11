@@ -1,11 +1,11 @@
 use raw_window_handle::{HasDisplayHandle, HasWindowHandle};
 
-pub mod tessellator;
-pub mod optimizer;
 pub mod grid;
+pub mod optimizer;
+pub mod tessellator;
 
-use std::sync::{Arc, Mutex};
 use std::sync::mpsc::Receiver;
+use std::sync::{Arc, Mutex};
 use wgpu::util::DeviceExt;
 
 #[repr(C)]
@@ -82,9 +82,14 @@ pub struct Renderer<'window> {
 }
 
 impl<'window> Renderer<'window> {
-    pub async fn new<W>(window: Arc<W>, width: u32, height: u32, optimizer: &optimizer::RenderOptimizer) -> Self 
-    where 
-        W: HasWindowHandle + HasDisplayHandle + 'window
+    pub async fn new<W>(
+        window: Arc<W>,
+        width: u32,
+        height: u32,
+        optimizer: &optimizer::RenderOptimizer,
+    ) -> Self
+    where
+        W: HasWindowHandle + HasDisplayHandle + 'window,
     {
         let instance = wgpu::Instance::default();
         let target = unsafe { wgpu::SurfaceTargetUnsafe::from_window(&*window) }.unwrap();
@@ -100,16 +105,14 @@ impl<'window> Renderer<'window> {
             .unwrap();
 
         let (device, queue) = adapter
-            .request_device(
-                &wgpu::DeviceDescriptor {
-                    label: Some("FragmentCAD Device"),
-                    required_features: wgpu::Features::empty(),
-                    required_limits: wgpu::Limits::default(),
-                    memory_hints: Default::default(),
-                    experimental_features: wgpu::ExperimentalFeatures::disabled(),
-                    trace: Default::default(),
-                },
-            )
+            .request_device(&wgpu::DeviceDescriptor {
+                label: Some("FragmentCAD Device"),
+                required_features: wgpu::Features::empty(),
+                required_limits: wgpu::Limits::default(),
+                memory_hints: Default::default(),
+                experimental_features: wgpu::ExperimentalFeatures::disabled(),
+                trace: Default::default(),
+            })
             .await
             .unwrap();
 
@@ -134,7 +137,7 @@ impl<'window> Renderer<'window> {
             view_formats: vec![],
             desired_maximum_frame_latency: 2,
         };
-        
+
         surface.configure(&device, &config);
 
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
@@ -144,22 +147,21 @@ impl<'window> Renderer<'window> {
 
         // Setup mock camera matching window sizes
         let aspect = width as f32 / height as f32;
-        let view_proj = glam::Mat4::orthographic_rh(-10.0 * aspect, 10.0 * aspect, -10.0, 10.0, -1.0, 1.0);
+        let view_proj =
+            glam::Mat4::orthographic_rh(-10.0 * aspect, 10.0 * aspect, -10.0, 10.0, -1.0, 1.0);
         let camera_uniform = CameraUniform {
             view_proj: view_proj.to_cols_array_2d(),
         };
 
-        let camera_buffer = device.create_buffer_init(
-            &wgpu::util::BufferInitDescriptor {
-                label: Some("Camera Buffer"),
-                contents: bytemuck::cast_slice(&[camera_uniform]),
-                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-            }
-        );
+        let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Camera Buffer"),
+            contents: bytemuck::cast_slice(&[camera_uniform]),
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        });
 
-        let camera_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            entries: &[
-                wgpu::BindGroupLayoutEntry {
+        let camera_bind_group_layout =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                entries: &[wgpu::BindGroupLayoutEntry {
                     binding: 0,
                     visibility: wgpu::ShaderStages::VERTEX,
                     ty: wgpu::BindingType::Buffer {
@@ -168,27 +170,25 @@ impl<'window> Renderer<'window> {
                         min_binding_size: None,
                     },
                     count: None,
-                }
-            ],
-            label: Some("camera_bind_group_layout"),
-        });
+                }],
+                label: Some("camera_bind_group_layout"),
+            });
 
         let camera_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             layout: &camera_bind_group_layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: camera_buffer.as_entire_binding(),
-                }
-            ],
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: camera_buffer.as_entire_binding(),
+            }],
             label: Some("camera_bind_group"),
         });
 
-        let render_pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("Render Pipeline Layout"),
-            bind_group_layouts: &[&camera_bind_group_layout],
-            immediate_size: 0,
-        });
+        let render_pipeline_layout =
+            device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("Render Pipeline Layout"),
+                bind_group_layouts: &[&camera_bind_group_layout],
+                immediate_size: 0,
+            });
 
         let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("Render Pipeline"),
@@ -271,16 +271,17 @@ impl<'window> Renderer<'window> {
 
         // Si el ECS está vacío (no debería), aseguramos al menos alocar 1 vertex dummy
         if vertices.is_empty() {
-            vertices.push(Vertex { position: [0.0; 3], color: [0.0; 4] });
+            vertices.push(Vertex {
+                position: [0.0; 3],
+                color: [0.0; 4],
+            });
         }
 
-        let vertex_buffer = device.create_buffer_init(
-            &wgpu::util::BufferInitDescriptor {
-                label: Some("Vertex Buffer"),
-                contents: bytemuck::cast_slice(&vertices),
-                usage: wgpu::BufferUsages::VERTEX,
-            }
-        );
+        let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Vertex Buffer"),
+            contents: bytemuck::cast_slice(&vertices),
+            usage: wgpu::BufferUsages::VERTEX,
+        });
 
         // Buffer inicial para la grilla (vacio por ahora, se llenara en el primer update_camera)
         let grid_vertex_buffer = device.create_buffer(&wgpu::BufferDescriptor {
@@ -328,13 +329,17 @@ impl<'window> Renderer<'window> {
     pub fn update_ephemeral(&mut self, vertices: &[Vertex]) {
         self.num_ephemeral_verts = vertices.len() as u32;
         if !vertices.is_empty() {
-            self.queue.write_buffer(&self.ephemeral_vertex_buffer, 0, bytemuck::cast_slice(vertices));
+            self.queue.write_buffer(
+                &self.ephemeral_vertex_buffer,
+                0,
+                bytemuck::cast_slice(vertices),
+            );
         }
     }
 
     pub fn update_geometry(&mut self, optimizer: &optimizer::RenderOptimizer) {
         use wgpu::util::DeviceExt;
-        
+
         let mut vertices = Vec::new();
         for inst in optimizer.instances.iter() {
             if inst.thickness > 0.0 {
@@ -350,19 +355,22 @@ impl<'window> Renderer<'window> {
         }
 
         if vertices.is_empty() {
-            vertices.push(Vertex { position: [0.0; 3], color: [0.0; 4] });
+            vertices.push(Vertex {
+                position: [0.0; 3],
+                color: [0.0; 4],
+            });
             self.num_vertices = 0;
         } else {
             self.num_vertices = vertices.len() as u32;
         }
 
-        self.vertex_buffer = self.device.create_buffer_init(
-            &wgpu::util::BufferInitDescriptor {
+        self.vertex_buffer = self
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some("Dynamic Vertex Buffer"),
                 contents: bytemuck::cast_slice(&vertices),
                 usage: wgpu::BufferUsages::VERTEX,
-            }
-        );
+            });
     }
 
     pub fn update_theme(&mut self, theme: fcad_core::domain::theme::Theme) {
@@ -383,15 +391,24 @@ impl<'window> Renderer<'window> {
         let uniform = CameraUniform {
             view_proj: vp.to_cols_array_2d(),
         };
-        self.queue.write_buffer(&self.camera_buffer, 0, bytemuck::cast_slice(&[uniform]));
+        self.queue
+            .write_buffer(&self.camera_buffer, 0, bytemuck::cast_slice(&[uniform]));
 
         // Regenerar grilla
         let (grid_verts, grid_indices) = grid::generate_grid_vertices(camera, 10.0);
         self.num_grid_indices = grid_indices.len() as u32;
 
         if !grid_verts.is_empty() {
-             self.queue.write_buffer(&self.grid_vertex_buffer, 0, bytemuck::cast_slice(&grid_verts));
-             self.queue.write_buffer(&self.grid_index_buffer, 0, bytemuck::cast_slice(&grid_indices));
+            self.queue.write_buffer(
+                &self.grid_vertex_buffer,
+                0,
+                bytemuck::cast_slice(&grid_verts),
+            );
+            self.queue.write_buffer(
+                &self.grid_index_buffer,
+                0,
+                bytemuck::cast_slice(&grid_indices),
+            );
         }
     }
 
@@ -444,13 +461,30 @@ impl<'window> Renderer<'window> {
             });
 
             if let Some(mut vp) = viewport {
-                if vp.x > self.config.width { vp.x = self.config.width; vp.width = 0; }
-                if vp.y > self.config.height { vp.y = self.config.height; vp.height = 0; } 
-                if vp.x + vp.width > self.config.width { vp.width = self.config.width - vp.x; }
-                if vp.y + vp.height > self.config.height { vp.height = self.config.height - vp.y; }
+                if vp.x > self.config.width {
+                    vp.x = self.config.width;
+                    vp.width = 0;
+                }
+                if vp.y > self.config.height {
+                    vp.y = self.config.height;
+                    vp.height = 0;
+                }
+                if vp.x + vp.width > self.config.width {
+                    vp.width = self.config.width - vp.x;
+                }
+                if vp.y + vp.height > self.config.height {
+                    vp.height = self.config.height - vp.y;
+                }
 
                 if vp.width > 0 && vp.height > 0 {
-                    render_pass.set_viewport(vp.x as f32, vp.y as f32, vp.width as f32, vp.height as f32, 0.0, 1.0);
+                    render_pass.set_viewport(
+                        vp.x as f32,
+                        vp.y as f32,
+                        vp.width as f32,
+                        vp.height as f32,
+                        0.0,
+                        1.0,
+                    );
                     render_pass.set_scissor_rect(vp.x, vp.y, vp.width, vp.height);
                 }
             }
@@ -460,7 +494,8 @@ impl<'window> Renderer<'window> {
                 render_pass.set_pipeline(&self.grid_pipeline);
                 render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
                 render_pass.set_vertex_buffer(0, self.grid_vertex_buffer.slice(..));
-                render_pass.set_index_buffer(self.grid_index_buffer.slice(..), wgpu::IndexFormat::Uint16);
+                render_pass
+                    .set_index_buffer(self.grid_index_buffer.slice(..), wgpu::IndexFormat::Uint16);
                 render_pass.draw_indexed(0..self.num_grid_indices, 0, 0..1);
             }
 
@@ -483,20 +518,19 @@ impl<'window> Renderer<'window> {
 }
 
 pub fn spawn_render_thread<W>(
-    window: Arc<W>, 
-    width: u32, 
+    window: Arc<W>,
+    width: u32,
     height: u32,
     world: Arc<Mutex<bevy_ecs::world::World>>,
-    rx: Receiver<RenderMessage>
-) 
-where 
-    W: HasWindowHandle + HasDisplayHandle + Send + Sync + 'static 
+    rx: Receiver<RenderMessage>,
+) where
+    W: HasWindowHandle + HasDisplayHandle + Send + Sync + 'static,
 {
     std::thread::spawn(move || {
         let ncs_yaml = include_str!("../../fcad-assets/standards/layers/ncs_layers_A.yaml");
         let mut ncs_standards = fcad_core::infrastructure::ecs::ncs::LayerStandards::new();
         let _ = ncs_standards.load_from_yaml(ncs_yaml);
-            
+
         let mut optimizer = optimizer::RenderOptimizer::new(ncs_standards);
 
         // Iniciamos con el ECS vacío de geometría de prueba
@@ -508,7 +542,7 @@ where
 
         let mut renderer = pollster::block_on(Renderer::new(window, width, height, &optimizer));
         println!("Renderer initialized. Starting 60FPS loop with ECS data...");
-        
+
         let mut current_vp: Option<ViewportRect> = None;
 
         loop {
@@ -532,31 +566,35 @@ where
 
             let cam = {
                 let mut w = world.lock().unwrap();
-                let cam_clone = w.get_resource::<fcad_core::domain::viewport::Camera>().cloned();
-                
+                let cam_clone = w
+                    .get_resource::<fcad_core::domain::viewport::Camera>()
+                    .cloned();
+
                 let mut added_query = w.query_filtered::<(
-                    bevy_ecs::entity::Entity, 
-                    &fcad_core::domain::Geometry, 
-                    Option<&fcad_core::domain::Layer>, 
-                    Option<&fcad_core::domain::ColorOverride>
-                ), bevy_ecs::query::Added<fcad_core::domain::Geometry>>();
-                
+                    bevy_ecs::entity::Entity,
+                    &fcad_core::domain::Geometry,
+                    Option<&fcad_core::domain::Layer>,
+                    Option<&fcad_core::domain::ColorOverride>,
+                ), bevy_ecs::query::Added<fcad_core::domain::Geometry>>(
+                );
+
                 let mut changed_query = w.query_filtered::<(
-                    bevy_ecs::entity::Entity, 
-                    &fcad_core::domain::Geometry, 
-                    Option<&fcad_core::domain::Layer>, 
-                    Option<&fcad_core::domain::ColorOverride>
-                ), bevy_ecs::query::Changed<fcad_core::domain::Geometry>>();
-                
+                    bevy_ecs::entity::Entity,
+                    &fcad_core::domain::Geometry,
+                    Option<&fcad_core::domain::Layer>,
+                    Option<&fcad_core::domain::ColorOverride>,
+                ), bevy_ecs::query::Changed<fcad_core::domain::Geometry>>(
+                );
+
                 let mut deleted_query = w.query_filtered::<
-                    bevy_ecs::entity::Entity, 
+                    bevy_ecs::entity::Entity,
                     bevy_ecs::query::Added<fcad_core::domain::Deleted>
                 >();
 
                 optimizer.sync_system(
                     added_query.iter(&w),
                     changed_query.iter(&w),
-                    deleted_query.iter(&w)
+                    deleted_query.iter(&w),
                 );
 
                 if !optimizer.dirty_ranges.is_empty() {
@@ -567,7 +605,7 @@ where
                 w.clear_trackers();
                 cam_clone
             };
-            
+
             if let Some(c) = cam {
                 // To avoid drawing duplicates logic could check if dirty here
                 renderer.update_camera(&c);

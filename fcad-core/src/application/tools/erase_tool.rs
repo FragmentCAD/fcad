@@ -1,6 +1,6 @@
 use super::{Tool, ToolResponse, ToolResult};
 use crate::application::input::{InputEvent, MouseButton};
-use crate::infrastructure::ecs::spatial::{SpatialIndex, SpatialEntity};
+use crate::infrastructure::ecs::spatial::{SpatialEntity, SpatialIndex};
 
 pub struct EraseTool;
 
@@ -44,18 +44,24 @@ mod tests {
     fn test_erase_tool_hits_entity() {
         let mut tool = EraseTool::new();
         let mut si = SpatialIndex::new();
-        
+
         let entity_id = Entity::from_raw(123);
         let bounds = AABB::from_point([5.0, 5.0]);
-        si.tree.insert(SpatialEntity { id: entity_id, envelope: bounds });
-        
+        si.tree.insert(SpatialEntity {
+            id: entity_id,
+            envelope: bounds,
+        });
+
         // 1. Click on point (5,5)
-        let resp = tool.on_input(&InputEvent::Click {
-            button: MouseButton::Left,
-            x: 5.0,
-            y: 5.0,
-        }, &si);
-        
+        let resp = tool.on_input(
+            &InputEvent::Click {
+                button: MouseButton::Left,
+                x: 5.0,
+                y: 5.0,
+            },
+            &si,
+        );
+
         if let ToolResponse::Completed(ToolResult::Deleted(entities)) = resp {
             assert_eq!(entities.len(), 1);
             assert_eq!(entities[0], entity_id);
@@ -68,13 +74,16 @@ mod tests {
     fn test_erase_tool_misses() {
         let mut tool = EraseTool::new();
         let si = SpatialIndex::new();
-        
-        let resp = tool.on_input(&InputEvent::Click {
-            button: MouseButton::Left,
-            x: 100.0,
-            y: 100.0,
-        }, &si);
-        
+
+        let resp = tool.on_input(
+            &InputEvent::Click {
+                button: MouseButton::Left,
+                x: 100.0,
+                y: 100.0,
+            },
+            &si,
+        );
+
         assert_eq!(resp, ToolResponse::Consumed);
     }
 }

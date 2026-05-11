@@ -1,7 +1,7 @@
-use std::borrow::Cow;
-use std::sync::Arc;
 use bytemuck::{Pod, Zeroable};
 use fcad_core::domain::viewport::Camera;
+use std::borrow::Cow;
+use std::sync::Arc;
 use winit::{
     application::ApplicationHandler,
     error::EventLoopError,
@@ -66,7 +66,7 @@ struct ViewerApp {
     device: Option<wgpu::Device>,
     queue: Option<wgpu::Queue>,
     config: Option<wgpu::SurfaceConfiguration>,
-    
+
     // Gráficos propios
     camera: Camera,
     camera_buffer: Option<wgpu::Buffer>,
@@ -98,7 +98,10 @@ impl ViewerApp {
     fn update_camera_buffer(&mut self) {
         if let (Some(queue), Some(buffer)) = (&self.queue, &self.camera_buffer) {
             let uniform = CameraUniform {
-                view_proj: self.camera.build_view_projection_matrix().to_cols_array_2d(),
+                view_proj: self
+                    .camera
+                    .build_view_projection_matrix()
+                    .to_cols_array_2d(),
                 resolution: [self.camera.screen_width, self.camera.screen_height],
                 padding: [0.0, 0.0],
             };
@@ -113,32 +116,34 @@ impl ApplicationHandler for ViewerApp {
             let window_attr = Window::default_attributes()
                 .with_title("FragmentCAD Renderer (WGSL lines)")
                 .with_inner_size(winit::dpi::LogicalSize::new(1024.0, 768.0));
-            
+
             let window = Arc::new(event_loop.create_window(window_attr).unwrap());
             self.window = Some(window.clone());
-            
+
             let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
                 backends: wgpu::Backends::PRIMARY,
                 ..Default::default()
             });
 
             let surface = instance.create_surface(window.clone()).unwrap();
-            
-            let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
-                power_preference: wgpu::PowerPreference::HighPerformance,
-                compatible_surface: Some(&surface),
-                force_fallback_adapter: false,
-            })).expect("Adapter missed");
 
-            let (device, queue) = pollster::block_on(adapter.request_device(
-                &wgpu::DeviceDescriptor {
+            let adapter =
+                pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
+                    power_preference: wgpu::PowerPreference::HighPerformance,
+                    compatible_surface: Some(&surface),
+                    force_fallback_adapter: false,
+                }))
+                .expect("Adapter missed");
+
+            let (device, queue) =
+                pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor {
                     label: None,
                     required_features: wgpu::Features::empty(),
                     required_limits: wgpu::Limits::default(),
                     memory_hints: wgpu::MemoryHints::Performance,
                     ..Default::default()
-                },
-            )).expect("Device failed");
+                }))
+                .expect("Device failed");
 
             let size = window.inner_size();
             let caps = surface.get_capabilities(&adapter);
@@ -171,19 +176,20 @@ impl ApplicationHandler for ViewerApp {
                 mapped_at_creation: false,
             });
 
-            let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                entries: &[wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::VERTEX,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                }],
-                label: Some("camera_bind_group_layout"),
-            });
+            let bind_group_layout =
+                device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                    entries: &[wgpu::BindGroupLayoutEntry {
+                        binding: 0,
+                        visibility: wgpu::ShaderStages::VERTEX,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Uniform,
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
+                    }],
+                    label: Some("camera_bind_group_layout"),
+                });
 
             let camera_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
                 layout: &bind_group_layout,
@@ -252,7 +258,7 @@ impl ApplicationHandler for ViewerApp {
                     _padding: [0.0; 3],
                 },
             ];
-            
+
             use wgpu::util::DeviceExt;
             let instance_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some("Lines Instance Buffer"),
@@ -281,12 +287,14 @@ impl ApplicationHandler for ViewerApp {
             }
 
             match event {
-                WindowEvent::CloseRequested | WindowEvent::KeyboardInput {
-                    event: KeyEvent {
-                        state: ElementState::Pressed,
-                        physical_key: PhysicalKey::Code(KeyCode::Escape),
-                        ..
-                    },
+                WindowEvent::CloseRequested
+                | WindowEvent::KeyboardInput {
+                    event:
+                        KeyEvent {
+                            state: ElementState::Pressed,
+                            physical_key: PhysicalKey::Code(KeyCode::Escape),
+                            ..
+                        },
                     ..
                 } => {
                     event_loop.exit();
@@ -309,12 +317,13 @@ impl ApplicationHandler for ViewerApp {
                 }
                 WindowEvent::Resized(physical_size) => {
                     if physical_size.width > 0 && physical_size.height > 0 {
-                        if let (Some(config), Some(device), Some(surface)) = 
-                            (&mut self.config, &self.device, &self.surface) {
+                        if let (Some(config), Some(device), Some(surface)) =
+                            (&mut self.config, &self.device, &self.surface)
+                        {
                             config.width = physical_size.width;
                             config.height = physical_size.height;
                             surface.configure(device, config);
-                            
+
                             self.camera.screen_width = physical_size.width as f32;
                             self.camera.screen_height = physical_size.height as f32;
                             self.update_camera_buffer();
@@ -322,34 +331,55 @@ impl ApplicationHandler for ViewerApp {
                     }
                 }
                 WindowEvent::RedrawRequested => {
-                    if let (Some(surface), Some(device), Some(queue), Some(pipeline), Some(c_bind), Some(i_buf)) = 
-                        (&self.surface, &self.device, &self.queue, &self.pipeline, &self.camera_bind_group, &self.instance_buffer) {
-                        
+                    if let (
+                        Some(surface),
+                        Some(device),
+                        Some(queue),
+                        Some(pipeline),
+                        Some(c_bind),
+                        Some(i_buf),
+                    ) = (
+                        &self.surface,
+                        &self.device,
+                        &self.queue,
+                        &self.pipeline,
+                        &self.camera_bind_group,
+                        &self.instance_buffer,
+                    ) {
                         let frame = surface.get_current_texture().expect("Failed next texture");
-                        let view = frame.texture.create_view(&wgpu::TextureViewDescriptor::default());
+                        let view = frame
+                            .texture
+                            .create_view(&wgpu::TextureViewDescriptor::default());
 
-                        let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("Render Encoder") });
+                        let mut encoder =
+                            device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                                label: Some("Render Encoder"),
+                            });
 
                         {
-                            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                                label: Some("Lines Render Pass"),
-                                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                                    view: &view,
-                                    resolve_target: None,
-                                    ops: wgpu::Operations {
-                                        load: wgpu::LoadOp::Clear(wgpu::Color {
-                                            r: 0.05, g: 0.05, b: 0.1, a: 1.0, 
-                                        }),
-                                        store: wgpu::StoreOp::Store,
-                                    },
-                                    depth_slice: None,
-                                })],
-                                depth_stencil_attachment: None,
-                                timestamp_writes: None,
-                                occlusion_query_set: None,
-                                ..Default::default()
-                            });
-                            
+                            let mut render_pass =
+                                encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                                    label: Some("Lines Render Pass"),
+                                    color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                                        view: &view,
+                                        resolve_target: None,
+                                        ops: wgpu::Operations {
+                                            load: wgpu::LoadOp::Clear(wgpu::Color {
+                                                r: 0.05,
+                                                g: 0.05,
+                                                b: 0.1,
+                                                a: 1.0,
+                                            }),
+                                            store: wgpu::StoreOp::Store,
+                                        },
+                                        depth_slice: None,
+                                    })],
+                                    depth_stencil_attachment: None,
+                                    timestamp_writes: None,
+                                    occlusion_query_set: None,
+                                    ..Default::default()
+                                });
+
                             render_pass.set_pipeline(pipeline);
                             render_pass.set_bind_group(0, c_bind, &[]);
                             render_pass.set_vertex_buffer(0, i_buf.slice(..));
@@ -375,10 +405,10 @@ impl ApplicationHandler for ViewerApp {
 
 fn main() -> Result<(), EventLoopError> {
     env_logger::init();
-    
+
     let event_loop = EventLoop::new().unwrap();
     event_loop.set_control_flow(winit::event_loop::ControlFlow::Poll);
-    
+
     let mut app = ViewerApp::default();
     event_loop.run_app(&mut app)
 }

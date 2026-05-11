@@ -14,10 +14,18 @@ pub enum InputEvent {
     /// Movimiento continuo del cursor (coordenadas de pantalla en píxeles).
     PointerMove { x: f32, y: f32 },
     /// Arrastre continuo del cursor (delta de movimiento en píxeles).
-    PointerDrag { button: MouseButton, dx: f32, dy: f32 },
+    PointerDrag {
+        button: MouseButton,
+        dx: f32,
+        dy: f32,
+    },
     /// Scroll de la rueda del ratón. `delta_y` positivo = zoom in.
     /// `anchor_x`, `anchor_y` = posición del cursor en pantalla donde se ancla el zoom.
-    Scroll { delta_y: f32, anchor_x: f32, anchor_y: f32 },
+    Scroll {
+        delta_y: f32,
+        anchor_x: f32,
+        anchor_y: f32,
+    },
     /// Clic simple de un botón del ratón (coordenadas de pantalla).
     Click { button: MouseButton, x: f32, y: f32 },
     /// Tecla presionada.

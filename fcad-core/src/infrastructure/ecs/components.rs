@@ -1,6 +1,6 @@
+use crate::domain::math::primitives::{Arc, Circle, Line, Point2D, Rectangle};
 use bevy_ecs::prelude::*;
-use crate::domain::math::primitives::{Point2D, Line, Circle, Arc, Rectangle};
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 /// Un enum que engloba cualquier tipo de geometría primitiva soportada por el ECS.
 #[derive(Component, Debug, Clone, Serialize, Deserialize, PartialEq)]

@@ -1,11 +1,14 @@
-use tauri;
+use crate::runtime::authority_dispatcher::{
+    derive_spatial_index, dispatch_mutation, MutationRequest,
+};
+use crate::runtime::consequences::apply_runtime_consequences;
+use crate::services::layer::LayerService;
+use crate::services::snap::SnapService;
+use crate::services::theme::ThemeService;
+use crate::services::tool::ToolService;
+use crate::services::viewport::ViewportService;
 use crate::state::AppState;
 use fcad_core::application::snap::{SnapState, WorldGeometryProvider};
-use crate::services::layer::LayerService;
-use crate::services::viewport::ViewportService;
-use crate::services::theme::ThemeService;
-use crate::services::snap::SnapService;
-use crate::services::tool::ToolService;
 
 #[tauri::command]
 pub fn get_snap_state(state: tauri::State<'_, AppState>) -> SnapState {
@@ -33,40 +36,54 @@ pub fn toggle_grid_snap(state: tauri::State<'_, AppState>) -> bool {
 
 #[tauri::command]
 pub fn hit_test(state: tauri::State<'_, AppState>, x: f64, y: f64) -> Vec<String> {
-    let index = state.spatial_index.lock().unwrap();
+    let mut world = state.world.lock().unwrap();
+    let index = derive_spatial_index(&mut world);
     let results = index.query_point(x, y);
-    
+
     let ids: Vec<String> = results.iter().map(|e| format!("{:?}", e)).collect();
-    
+
     if !ids.is_empty() {
         println!("Hit Test at ({}, {}): Intersected IDs: {:?}", x, y, ids);
     }
-    
+
     ids
 }
 
 #[tauri::command]
-pub fn update_viewport_rect(window: tauri::Window, state: tauri::State<'_, AppState>, x: f64, y: f64, width: f64, height: f64) {
+pub fn update_viewport_rect(
+    window: tauri::Window,
+    state: tauri::State<'_, AppState>,
+    x: f64,
+    y: f64,
+    width: f64,
+    height: f64,
+) {
     let factor = window.scale_factor().unwrap_or(1.0);
-    
+
     let mut world = state.world.lock().unwrap();
     if let Some(mut cam) = world.get_resource_mut::<fcad_core::domain::viewport::Camera>() {
         let tx = state.render_tx.lock().unwrap();
         ViewportService::update_viewport_rect(
-            &tx, 
-            &mut cam, 
-            (x * factor) as u32, 
-            (y * factor) as u32, 
-            (width * factor) as u32, 
-            (height * factor) as u32
+            &tx,
+            &mut cam,
+            (x * factor) as u32,
+            (y * factor) as u32,
+            (width * factor) as u32,
+            (height * factor) as u32,
         );
     }
 }
 
 #[tauri::command]
-pub fn send_camera_zoom(window: tauri::Window, state: tauri::State<'_, AppState>, factor: f32, anchor_x: f32, anchor_y: f32) {
+pub fn send_camera_zoom(
+    window: tauri::Window,
+    state: tauri::State<'_, AppState>,
+    factor: f32,
+    anchor_x: f32,
+    anchor_y: f32,
+) {
     let scale = window.scale_factor().unwrap_or(1.0) as f32;
-    
+
     let mut world = state.world.lock().unwrap();
     if let Some(mut cam) = world.get_resource_mut::<fcad_core::domain::viewport::Camera>() {
         cam.zoom_at(factor, anchor_x * scale, anchor_y * scale);
@@ -76,7 +93,7 @@ pub fn send_camera_zoom(window: tauri::Window, state: tauri::State<'_, AppState>
 #[tauri::command]
 pub fn send_camera_pan(window: tauri::Window, state: tauri::State<'_, AppState>, dx: f32, dy: f32) {
     let scale = window.scale_factor().unwrap_or(1.0) as f32;
-    
+
     let mut world = state.world.lock().unwrap();
     if let Some(mut cam) = world.get_resource_mut::<fcad_core::domain::viewport::Camera>() {
         cam.pan(dx * scale, dy * scale);
@@ -96,7 +113,13 @@ pub fn get_active_tool(state: tauri::State<'_, AppState>) -> String {
 }
 
 #[tauri::command]
-pub fn send_tool_click(window: tauri::Window, state: tauri::State<'_, AppState>, button: String, x: f32, y: f32) -> String {
+pub fn send_tool_click(
+    window: tauri::Window,
+    state: tauri::State<'_, AppState>,
+    button: String,
+    x: f32,
+    y: f32,
+) -> String {
     let scale = window.scale_factor().unwrap_or(1.0) as f32;
     let world_pos = {
         let world = state.world.lock().unwrap();
@@ -109,8 +132,6 @@ pub fn send_tool_click(window: tauri::Window, state: tauri::State<'_, AppState>,
 
     use fcad_core::application::input::{InputEvent, MouseButton};
     use fcad_core::application::tools::{ToolManagerResponse, ToolResponse, ToolResult};
-    use fcad_core::domain::{Geometry, Layer, math::primitives::Point2D, math::primitives::Line};
-    use fcad_core::infrastructure::ecs::ncs::ActiveLayer;
 
     let btn = match button.as_str() {
         "left" => MouseButton::Left,
@@ -118,61 +139,69 @@ pub fn send_tool_click(window: tauri::Window, state: tauri::State<'_, AppState>,
         "middle" => MouseButton::Middle,
         _ => MouseButton::Left,
     };
-    let event = InputEvent::Click { 
-        button: btn, 
-        x: world_pos.x, 
-        y: world_pos.y 
+    let event = InputEvent::Click {
+        button: btn,
+        x: world_pos.x,
+        y: world_pos.y,
     };
 
     let mut tm = state.tool_manager.lock().unwrap();
-    let index = state.spatial_index.lock().unwrap();
     let mut world = state.world.lock().unwrap();
-    let zoom = if let Some(cam) = world.get_resource::<fcad_core::domain::viewport::Camera>() { cam.zoom } else { 1.0 };
-    
-    let provider = WorldGeometryProvider { world: &world };
-    let response = tm.process_input(&event, &index, &provider, zoom);
+    let zoom = if let Some(cam) = world.get_resource::<fcad_core::domain::viewport::Camera>() {
+        cam.zoom
+    } else {
+        1.0
+    };
+
+    let response = {
+        let index = derive_spatial_index(&mut world);
+        let provider = WorldGeometryProvider { world: &world };
+        tm.process_input(&event, &index, &provider, zoom)
+    };
 
     if let ToolManagerResponse::Tool(ToolResponse::Completed(result), _) = &response {
-        match result {
-            ToolResult::Line { start, end } => {
-                let active_layer = world.get_resource::<ActiveLayer>().cloned().unwrap_or_default();
-                world.spawn((
-                    Geometry::Line(Line {
-                        start: Point2D::new(start[0] as f64, start[1] as f64),
-                        end: Point2D::new(end[0] as f64, end[1] as f64),
-                    }),
-                    Layer(active_layer.0),
-                ));
+        let outcome = match result {
+            ToolResult::Line { start, end } => dispatch_mutation(
+                &mut world,
+                MutationRequest::CreateLine {
+                    start: *start,
+                    end: *end,
+                },
+            ),
+            ToolResult::Rectangle { p1, p2 } => dispatch_mutation(
+                &mut world,
+                MutationRequest::CreateRectangle { p1: *p1, p2: *p2 },
+            ),
+            ToolResult::Deleted(entities) => dispatch_mutation(
+                &mut world,
+                MutationRequest::DeleteEntities(entities.clone()),
+            ),
+            ToolResult::Space {
+                vertices,
+                space_kind,
+            } => {
+                println!(
+                    "Space completed: {} with {} vertices",
+                    space_kind,
+                    vertices.len()
+                );
+                crate::runtime::authority_dispatcher::MutationOutcome::noop()
             }
-            ToolResult::Rectangle { p1, p2 } => {
-                use fcad_core::domain::math::primitives::Rectangle;
-                let active_layer = world.get_resource::<ActiveLayer>().cloned().unwrap_or_default();
-                world.spawn((
-                    Geometry::Rectangle(Rectangle {
-                        p1: Point2D::new(p1[0] as f64, p1[1] as f64),
-                        p2: Point2D::new(p2[0] as f64, p2[1] as f64),
-                    }),
-                    Layer(active_layer.0),
-                ));
-            }
-            ToolResult::Deleted(entities) => {
-                for entity in entities {
-                    if world.get_entity(*entity).is_some() {
-                        world.despawn(*entity);
-                    }
-                }
-            }
-            ToolResult::Space { vertices, space_kind } => {
-                println!("Space completed: {} with {} vertices", space_kind, vertices.len());
-            }
-        }
+        };
+
+        apply_runtime_consequences(&outcome);
     }
 
     format!("{:?}", response)
 }
 
 #[tauri::command]
-pub fn send_tool_move(window: tauri::Window, state: tauri::State<'_, AppState>, x: f32, y: f32) -> String {
+pub fn send_tool_move(
+    window: tauri::Window,
+    state: tauri::State<'_, AppState>,
+    x: f32,
+    y: f32,
+) -> String {
     let scale = window.scale_factor().unwrap_or(1.0) as f32;
     let world_pos = {
         let world = state.world.lock().unwrap();
@@ -186,38 +215,41 @@ pub fn send_tool_move(window: tauri::Window, state: tauri::State<'_, AppState>, 
     use fcad_core::application::input::InputEvent;
     use fcad_core::application::tools::{ToolManagerResponse, ToolResponse};
 
-    let event = InputEvent::PointerMove { 
-        x: world_pos.x, 
-        y: world_pos.y 
+    let event = InputEvent::PointerMove {
+        x: world_pos.x,
+        y: world_pos.y,
     };
 
     let mut tm = state.tool_manager.lock().unwrap();
-    let index = state.spatial_index.lock().unwrap();
-    let world = state.world.lock().unwrap();
-    let zoom = if let Some(cam) = world.get_resource::<fcad_core::domain::viewport::Camera>() { cam.zoom } else { 1.0 };
-    
+    let mut world = state.world.lock().unwrap();
+    let zoom = if let Some(cam) = world.get_resource::<fcad_core::domain::viewport::Camera>() {
+        cam.zoom
+    } else {
+        1.0
+    };
+
+    let index = derive_spatial_index(&mut world);
     let provider = WorldGeometryProvider { world: &world };
     let response = tm.process_input(&event, &index, &provider, zoom);
 
     if let ToolManagerResponse::Tool(resp, _) = &response {
         if let Ok(tx) = state.render_tx.lock() {
             let vertices: Vec<fcad_renderer::Vertex> = match resp {
-                ToolResponse::EphemeralLines(lines) => {
-                    lines.iter()
-                        .flat_map(|(start, end)| {
-                            vec![
-                                fcad_renderer::Vertex {
-                                    position: [start[0], start[1], 0.0],
-                                    color: [0.0, 1.0, 1.0, 1.0],
-                                },
-                                fcad_renderer::Vertex {
-                                    position: [end[0], end[1], 0.0],
-                                    color: [0.0, 1.0, 1.0, 1.0],
-                                },
-                            ]
-                        })
-                        .collect()
-                }
+                ToolResponse::EphemeralLines(lines) => lines
+                    .iter()
+                    .flat_map(|(start, end)| {
+                        vec![
+                            fcad_renderer::Vertex {
+                                position: [start[0], start[1], 0.0],
+                                color: [0.0, 1.0, 1.0, 1.0],
+                            },
+                            fcad_renderer::Vertex {
+                                position: [end[0], end[1], 0.0],
+                                color: [0.0, 1.0, 1.0, 1.0],
+                            },
+                        ]
+                    })
+                    .collect(),
                 _ => Vec::new(),
             };
             let _ = tx.send(fcad_renderer::RenderMessage::UpdateEphemeral(vertices));
@@ -238,28 +270,35 @@ pub fn get_themes_list() -> Vec<String> {
 }
 
 #[tauri::command]
-pub fn switch_theme(state: tauri::State<'_, AppState>, theme_name: String) -> Result<fcad_core::domain::theme::Theme, String> {
+pub fn switch_theme(
+    state: tauri::State<'_, AppState>,
+    theme_name: String,
+) -> Result<fcad_core::domain::theme::Theme, String> {
     let theme = ThemeService::load_theme(&theme_name)?;
-    
+
     if let Ok(mut current) = state.current_theme.lock() {
         *current = theme.clone();
     }
-    
+
     if let Ok(tx) = state.render_tx.lock() {
         let _ = tx.send(fcad_renderer::RenderMessage::UpdateTheme(theme.clone()));
     }
-    
+
     Ok(theme)
 }
 
 #[tauri::command]
-pub fn get_layers(state: tauri::State<'_, AppState>) -> Vec<fcad_core::infrastructure::ecs::ncs::NcsLayerDef> {
+pub fn get_layers(
+    state: tauri::State<'_, AppState>,
+) -> Vec<fcad_core::infrastructure::ecs::ncs::NcsLayerDef> {
     let world = state.world.lock().unwrap();
     LayerService::get_layers(&world)
 }
 
 #[tauri::command]
-pub fn get_adapted_layers(state: tauri::State<'_, AppState>) -> Vec<fcad_core::infrastructure::ecs::ncs::NcsLayerDef> {
+pub fn get_adapted_layers(
+    state: tauri::State<'_, AppState>,
+) -> Vec<fcad_core::infrastructure::ecs::ncs::NcsLayerDef> {
     let world = state.world.lock().unwrap();
     let theme = state.current_theme.lock().unwrap().clone();
     LayerService::get_adapted_layers(&world, &theme)
@@ -268,24 +307,8 @@ pub fn get_adapted_layers(state: tauri::State<'_, AppState>) -> Vec<fcad_core::i
 #[tauri::command]
 pub fn set_active_layer(state: tauri::State<'_, AppState>, name: String) -> String {
     let mut world = state.world.lock().unwrap();
-    LayerService::set_active_layer(&mut world, name)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::state::AppState;
-    use std::sync::{Arc, Mutex};
-    use bevy_ecs::world::World;
-    use fcad_core::application::tools::ToolManager;
-
-    pub fn setup_mock_state() -> AppState {
-        AppState {
-            spatial_index: Mutex::new(fcad_core::infrastructure::ecs::spatial::SpatialIndex::new()),
-            render_tx: Mutex::new(std::sync::mpsc::channel().0),
-            tool_manager: Mutex::new(ToolManager::new()),
-            world: Arc::new(Mutex::new(World::new())),
-            current_theme: Mutex::new(fcad_core::domain::theme::Theme::default()),
-        }
-    }
+    let request = LayerService::set_active_layer_request(name.clone());
+    let outcome = dispatch_mutation(&mut world, request);
+    apply_runtime_consequences(&outcome);
+    name
 }

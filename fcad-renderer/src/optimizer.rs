@@ -1,6 +1,6 @@
 use bevy_ecs::prelude::*;
-use fcad_core::domain::{Geometry, Layer, ColorOverride};
 use fcad_core::domain::math::primitives::{Line, Point2D};
+use fcad_core::domain::{ColorOverride, Geometry, Layer};
 use fcad_core::infrastructure::ecs::ncs::LayerStandards;
 use std::collections::HashMap;
 
@@ -22,7 +22,7 @@ pub struct RenderOptimizer {
     pub instances: Vec<LineInstance>,
     /// Índices de ranuras liberadas (para reutilizar cuando se borran entidades)
     pub free_slots: Vec<usize>,
-    
+
     // Tracking interno de lo que se debe subir a VRAM este frame
     pub dirty_ranges: Vec<usize>,
 
@@ -49,8 +49,22 @@ impl RenderOptimizer {
     /// Sistema para sincronizar ECS a la configuración local del optimizador
     pub fn sync_system<'a>(
         &mut self,
-        added: impl IntoIterator<Item = (Entity, &'a Geometry, Option<&'a Layer>, Option<&'a ColorOverride>)>,
-        changed: impl IntoIterator<Item = (Entity, &'a Geometry, Option<&'a Layer>, Option<&'a ColorOverride>)>,
+        added: impl IntoIterator<
+            Item = (
+                Entity,
+                &'a Geometry,
+                Option<&'a Layer>,
+                Option<&'a ColorOverride>,
+            ),
+        >,
+        changed: impl IntoIterator<
+            Item = (
+                Entity,
+                &'a Geometry,
+                Option<&'a Layer>,
+                Option<&'a ColorOverride>,
+            ),
+        >,
         removed: impl IntoIterator<Item = Entity>,
     ) {
         self.dirty_ranges.clear();
@@ -90,7 +104,13 @@ impl RenderOptimizer {
         }
     }
 
-    fn add_geometry(&mut self, entity: Entity, geometry: &Geometry, layer: Option<&Layer>, color_override: Option<&ColorOverride>) {
+    fn add_geometry(
+        &mut self,
+        entity: Entity,
+        geometry: &Geometry,
+        layer: Option<&Layer>,
+        color_override: Option<&ColorOverride>,
+    ) {
         let lines = match geometry {
             Geometry::Line(l) => vec![*l],
             Geometry::Rectangle(r) => vec![
@@ -102,7 +122,9 @@ impl RenderOptimizer {
             _ => vec![], // Otros tipos no soportados aún por el renderer 2D simple
         };
 
-        if lines.is_empty() { return; }
+        if lines.is_empty() {
+            return;
+        }
 
         let mut current_entity_indices = Vec::new();
 
@@ -116,7 +138,7 @@ impl RenderOptimizer {
                 self.instances.push(instance);
                 new_index
             };
-            
+
             current_entity_indices.push(index);
             self.dirty_ranges.push(index);
         }
@@ -124,9 +146,14 @@ impl RenderOptimizer {
         self.entity_to_index.insert(entity, current_entity_indices);
     }
 
-    fn convert_line(&self, line: &Line, layer: Option<&Layer>, color_override: Option<&ColorOverride>) -> LineInstance {
+    fn convert_line(
+        &self,
+        line: &Line,
+        layer: Option<&Layer>,
+        color_override: Option<&ColorOverride>,
+    ) -> LineInstance {
         let mut final_color = [1.0, 1.0, 1.0, 1.0];
-        
+
         if let Some(l) = layer {
             final_color = self.ncs_dict.get_color(&l.0);
         }
@@ -148,15 +175,15 @@ impl RenderOptimizer {
     pub fn write_to_vram(&mut self, queue: &wgpu::Queue, buffer: &wgpu::Buffer) {
         // En un motor AAA, aquí agruparías rangos contiguos en `dirty_ranges`
         // y ejecutarías queue.write_buffer() solo para esos subyacentes bloques de bytes.
-        
+
         let size_of_instance = std::mem::size_of::<LineInstance>() as u64;
-        
+
         for &index in &self.dirty_ranges {
             let offset = index as u64 * size_of_instance;
             let data = bytemuck::bytes_of(&self.instances[index]);
             queue.write_buffer(buffer, offset, data);
         }
-        
+
         // Limpiamos los dirty luego de confirmar el vaciado VRAM
         self.dirty_ranges.clear();
     }
@@ -175,17 +202,25 @@ mod tests {
         // Inicializamos 10,000 líneas estáticas simuladas
         for i in 0..10_000 {
             world.spawn(Geometry::Line(Line {
-                start: Point2D { x: i as f64, y: 0.0 },
-                end: Point2D { x: i as f64, y: 10.0 },
+                start: Point2D {
+                    x: i as f64,
+                    y: 0.0,
+                },
+                end: Point2D {
+                    x: i as f64,
+                    y: 10.0,
+                },
             }));
         }
 
         // Insertamos 1 línea Dinámica
-        let dynamic_entity = world.spawn(Geometry::Line(Line {
-            start: Point2D { x: -10.0, y: -10.0 },
-            end: Point2D { x: -10.0, y: -10.0 },
-        })).id();
-        
+        let dynamic_entity = world
+            .spawn(Geometry::Line(Line {
+                start: Point2D { x: -10.0, y: -10.0 },
+                end: Point2D { x: -10.0, y: -10.0 },
+            }))
+            .id();
+
         // Ejecutamos Sync 1 (Added) que capturará todo
         let mut added_query = world.query_filtered::<(Entity, &Geometry, Option<&Layer>, Option<&ColorOverride>), Added<Geometry>>();
         let mut changed_query = world.query_filtered::<(Entity, &Geometry, Option<&Layer>, Option<&ColorOverride>), Changed<Geometry>>();
@@ -194,7 +229,7 @@ mod tests {
         optimizer.sync_system(
             added_query.iter(&world),
             changed_query.iter(&world),
-            deleted_query.iter(&world)
+            deleted_query.iter(&world),
         );
 
         // Afirmar que 10,001 líneas se insertaron
@@ -215,12 +250,16 @@ mod tests {
         optimizer.sync_system(
             added_query.iter(&world),
             changed_query.iter(&world),
-            deleted_query.iter(&world)
+            deleted_query.iter(&world),
         );
 
         // Afirmamos optimización crítica! Solo debería haber 1 en el Dirty Range
-        assert_eq!(optimizer.dirty_ranges.len(), 1, "GPU Saturada! Se actualizó más de 1 línea");
-        
+        assert_eq!(
+            optimizer.dirty_ranges.len(),
+            1,
+            "GPU Saturada! Se actualizó más de 1 línea"
+        );
+
         // Verificamos el ruteo interno
         let updated_indices = &optimizer.entity_to_index[&dynamic_entity];
         assert_eq!(optimizer.instances[updated_indices[0]].end[0], -30.0);

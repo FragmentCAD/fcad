@@ -1,7 +1,7 @@
-use bevy_ecs::entity::Entity;
-use crate::infrastructure::ecs::spatial::SpatialIndex;
 use crate::infrastructure::ecs::components::Geometry;
-use serde::{Serialize, Deserialize};
+use crate::infrastructure::ecs::spatial::SpatialIndex;
+use bevy_ecs::entity::Entity;
+use serde::{Deserialize, Serialize};
 
 /// Resultado de una operación de snap.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
@@ -89,7 +89,7 @@ impl SnapEngine {
         if self.state.osnaps_enabled {
             // Convertimos el radio de píxeles a unidades del mundo
             let world_threshold = self.snap_radius_px / zoom_level;
-            
+
             let candidates = spatial_index.query_area(
                 (raw_x - world_threshold) as f64,
                 (raw_y - world_threshold) as f64,
@@ -104,14 +104,23 @@ impl SnapEngine {
                 if let Some(geometry) = provider.get_geometry(entity) {
                     let points = match geometry {
                         Geometry::Line(l) => {
-                            let end_pts = vec![[l.start.x as f32, l.start.y as f32], [l.end.x as f32, l.end.y as f32]];
-                            let mid_pt = [(l.start.x as f32 + l.end.x as f32) / 2.0, (l.start.y as f32 + l.end.y as f32) / 2.0];
-                            
+                            let end_pts = vec![
+                                [l.start.x as f32, l.start.y as f32],
+                                [l.end.x as f32, l.end.y as f32],
+                            ];
+                            let mid_pt = [
+                                (l.start.x as f32 + l.end.x as f32) / 2.0,
+                                (l.start.y as f32 + l.end.y as f32) / 2.0,
+                            ];
+
                             // Primero buscamos en endpoints (prioridad mayor)
-                            let mut pts = vec![(end_pts[0], SnapType::Endpoint), (end_pts[1], SnapType::Endpoint)];
+                            let mut pts = vec![
+                                (end_pts[0], SnapType::Endpoint),
+                                (end_pts[1], SnapType::Endpoint),
+                            ];
                             pts.push((mid_pt, SnapType::Midpoint));
                             pts
-                        },
+                        }
                         Geometry::Point(p) => vec![([p.x as f32, p.y as f32], SnapType::Endpoint)],
                         _ => vec![],
                     };
@@ -131,7 +140,7 @@ impl SnapEngine {
             if let Some((p, stype)) = best_point {
                 result.point = p;
                 result.snap_type = stype;
-                return result; 
+                return result;
             }
         }
 
@@ -145,10 +154,10 @@ impl SnapEngine {
                 if distance > 1e-4 {
                     let angle_rad = dy.atan2(dx);
                     let angle_deg = angle_rad.to_degrees().abs();
-                    
+
                     // Normalizamos a [0, 90] para simplificar la lógica de "cercanía"
                     let norm_angle = angle_deg % 90.0;
-                    
+
                     // Definimos umbrales para 90° y 45° (ej. 15 grados de tolerancia)
                     if norm_angle < 15.0 || norm_angle > 75.0 {
                         // Snap a 90° (H o V)
@@ -178,8 +187,8 @@ impl SnapEngine {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::domain::math::primitives::Point2D;
     use crate::domain::math::primitives::Line as MathLine;
+    use crate::domain::math::primitives::Point2D;
     use crate::infrastructure::ecs::spatial::calculate_aabb;
     use crate::infrastructure::ecs::spatial::SpatialEntity;
 
@@ -197,13 +206,16 @@ mod tests {
     fn test_ortho_horizontal_snap() {
         let engine = SnapEngine::new();
         let spatial_index = SpatialIndex::new();
-        let provider = MockProvider { geometries: std::collections::HashMap::new() };
-        
+        let provider = MockProvider {
+            geometries: std::collections::HashMap::new(),
+        };
+
         let origin = [0.0, 0.0];
         let raw = [10.0, 2.0];
-        
-        let result = engine.snap_coordinate(raw[0], raw[1], Some(origin), &spatial_index, &provider, 1.0);
-        
+
+        let result =
+            engine.snap_coordinate(raw[0], raw[1], Some(origin), &spatial_index, &provider, 1.0);
+
         assert_eq!(result.point[0], 10.0);
         assert_eq!(result.point[1], 0.0);
         assert_eq!(result.snap_type, SnapType::Ortho);
@@ -217,19 +229,26 @@ mod tests {
 
         // Creamos una línea de (20, 20) a (30, 30)
         let entity = Entity::from_raw(1);
-        let geom = Geometry::Line(MathLine::new(Point2D::new(20.0, 20.0), Point2D::new(30.0, 30.0)));
+        let geom = Geometry::Line(MathLine::new(
+            Point2D::new(20.0, 20.0),
+            Point2D::new(30.0, 30.0),
+        ));
         let envelope = calculate_aabb(&geom);
-        spatial_index.tree.insert(SpatialEntity { id: entity, envelope });
+        spatial_index.tree.insert(SpatialEntity {
+            id: entity,
+            envelope,
+        });
         geometries.insert(entity, geom);
 
         let provider = MockProvider { geometries };
-        
+
         let origin = [0.0, 0.0];
         // Cursor cerca del endpoint (20, 20), pero también en un ángulo que activaría Ortho
         let raw = [20.5, 19.5];
-        
-        let result = engine.snap_coordinate(raw[0], raw[1], Some(origin), &spatial_index, &provider, 1.0);
-        
+
+        let result =
+            engine.snap_coordinate(raw[0], raw[1], Some(origin), &spatial_index, &provider, 1.0);
+
         // Debe ganar el Endpoint (20, 20) sobre el Ortho (que forzaría 20.5, 0.0 o 0.0, 19.5)
         assert_eq!(result.point[0], 20.0);
         assert_eq!(result.point[1], 20.0);
@@ -244,16 +263,22 @@ mod tests {
 
         // Línea de (0, 0) a (10, 0). Midpoint es (5, 0).
         let entity = Entity::from_raw(1);
-        let geom = Geometry::Line(MathLine::new(Point2D::new(0.0, 0.0), Point2D::new(10.0, 0.0)));
+        let geom = Geometry::Line(MathLine::new(
+            Point2D::new(0.0, 0.0),
+            Point2D::new(10.0, 0.0),
+        ));
         let envelope = calculate_aabb(&geom);
-        spatial_index.tree.insert(SpatialEntity { id: entity, envelope });
+        spatial_index.tree.insert(SpatialEntity {
+            id: entity,
+            envelope,
+        });
         geometries.insert(entity, geom);
 
         let provider = MockProvider { geometries };
-        
+
         let raw = [5.2, 0.3];
         let result = engine.snap_coordinate(raw[0], raw[1], None, &spatial_index, &provider, 1.0);
-        
+
         assert_eq!(result.point[0], 5.0);
         assert_eq!(result.point[1], 0.0);
         assert_eq!(result.snap_type, SnapType::Midpoint);
@@ -263,14 +288,17 @@ mod tests {
     fn test_polar_45_snap() {
         let engine = SnapEngine::new();
         let spatial_index = SpatialIndex::new();
-        let provider = MockProvider { geometries: std::collections::HashMap::new() };
-        
+        let provider = MockProvider {
+            geometries: std::collections::HashMap::new(),
+        };
+
         let origin = [0.0, 0.0];
         // Cursor cerca de 45°: (10, 9)
         let raw = [10.0, 9.0];
-        
-        let result = engine.snap_coordinate(raw[0], raw[1], Some(origin), &spatial_index, &provider, 1.0);
-        
+
+        let result =
+            engine.snap_coordinate(raw[0], raw[1], Some(origin), &spatial_index, &provider, 1.0);
+
         // Debe promediar dx y dy para quedar en la diagonal: (9.5, 9.5)
         assert_eq!(result.point[0], 9.5);
         assert_eq!(result.point[1], 9.5);

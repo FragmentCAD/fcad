@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use crate::domain::math::primitives::{Point2D, Line, Circle, Rectangle};
+    use crate::domain::math::primitives::{Circle, Line, Point2D, Rectangle};
 
     #[test]
     fn test_point_distance() {

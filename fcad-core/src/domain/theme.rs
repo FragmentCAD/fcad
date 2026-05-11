@@ -9,7 +9,11 @@ pub fn luminance(hex: &str) -> f64 {
     let b = u8::from_str_radix(&hex[4..6], 16).unwrap_or(0) as f64 / 255.0;
 
     let linearize = |c: f64| -> f64 {
-        if c <= 0.03928 { c / 12.92 } else { ((c + 0.055) / 1.055).powf(2.4) }
+        if c <= 0.03928 {
+            c / 12.92
+        } else {
+            ((c + 0.055) / 1.055).powf(2.4)
+        }
     };
 
     0.2126 * linearize(r) + 0.7152 * linearize(g) + 0.0722 * linearize(b)
@@ -39,11 +43,17 @@ fn hex_to_hsl(hex: &str) -> (f64, f64, f64) {
     }
 
     let d = max - min;
-    let s = if l > 0.5 { d / (2.0 - max - min) } else { d / (max + min) };
+    let s = if l > 0.5 {
+        d / (2.0 - max - min)
+    } else {
+        d / (max + min)
+    };
 
     let h = if (max - r).abs() < 1e-10 {
         let mut h = (g - b) / d;
-        if g < b { h += 6.0; }
+        if g < b {
+            h += 6.0;
+        }
         h
     } else if (max - g).abs() < 1e-10 {
         (b - r) / d + 2.0
@@ -57,18 +67,32 @@ fn hex_to_hsl(hex: &str) -> (f64, f64, f64) {
 /// Converts HSL to hex color string
 fn hsl_to_hex(h: f64, s: f64, l: f64) -> String {
     let hue_to_rgb = |p: f64, q: f64, mut t: f64| -> f64 {
-        if t < 0.0 { t += 1.0; }
-        if t > 1.0 { t -= 1.0; }
-        if t < 1.0 / 6.0 { return p + (q - p) * 6.0 * t; }
-        if t < 1.0 / 2.0 { return q; }
-        if t < 2.0 / 3.0 { return p + (q - p) * (2.0 / 3.0 - t) * 6.0; }
+        if t < 0.0 {
+            t += 1.0;
+        }
+        if t > 1.0 {
+            t -= 1.0;
+        }
+        if t < 1.0 / 6.0 {
+            return p + (q - p) * 6.0 * t;
+        }
+        if t < 1.0 / 2.0 {
+            return q;
+        }
+        if t < 2.0 / 3.0 {
+            return p + (q - p) * (2.0 / 3.0 - t) * 6.0;
+        }
         p
     };
 
     let (r, g, b) = if s.abs() < 1e-10 {
         (l, l, l)
     } else {
-        let q = if l < 0.5 { l * (1.0 + s) } else { l + s - l * s };
+        let q = if l < 0.5 {
+            l * (1.0 + s)
+        } else {
+            l + s - l * s
+        };
         let p = 2.0 * l - q;
         (
             hue_to_rgb(p, q, h / 360.0 + 1.0 / 3.0),
@@ -77,7 +101,8 @@ fn hsl_to_hex(h: f64, s: f64, l: f64) -> String {
         )
     };
 
-    format!("#{:02X}{:02X}{:02X}",
+    format!(
+        "#{:02X}{:02X}{:02X}",
         (r * 255.0).round() as u8,
         (g * 255.0).round() as u8,
         (b * 255.0).round() as u8,

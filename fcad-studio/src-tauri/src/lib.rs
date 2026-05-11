@@ -1,12 +1,12 @@
-use tauri::Manager;
-use std::sync::{Arc, Mutex};
-use fcad_core::infrastructure::ecs::spatial::SpatialIndex;
 use fcad_core::application::tools::ToolManager;
+use std::sync::{Arc, Mutex};
+use tauri::Manager;
 
 pub mod commands;
-pub mod state;
-pub mod services;
 pub mod models;
+pub mod runtime;
+pub mod services;
+pub mod state;
 
 use crate::state::AppState;
 
@@ -14,10 +14,9 @@ use crate::state::AppState;
 pub fn run() {
     let (tx, rx) = std::sync::mpsc::channel();
     let world = Arc::new(Mutex::new(bevy_ecs::world::World::new()));
-    
+
     tauri::Builder::default()
         .manage(AppState {
-            spatial_index: Mutex::new(SpatialIndex::new()),
             render_tx: Mutex::new(tx.clone()),
             tool_manager: Mutex::new(ToolManager::new()),
             world: world.clone(),
@@ -44,27 +43,40 @@ pub fn run() {
         ])
         .setup(move |app| {
             let main_window = Arc::new(app.get_webview_window("main").unwrap());
-            let size = main_window.inner_size().unwrap_or(tauri::PhysicalSize::new(800, 600));
+            let size = main_window
+                .inner_size()
+                .unwrap_or(tauri::PhysicalSize::new(800, 600));
 
             // --- Inicialización de Capas (NCS) ---
-            let ncs_path = std::path::Path::new("..").join("..").join("fcad-assets").join("standards").join("layers").join("ncs_layers_A.yaml");
+            let ncs_path = std::path::Path::new("..")
+                .join("..")
+                .join("fcad-assets")
+                .join("standards")
+                .join("layers")
+                .join("ncs_layers_A.yaml");
             let mut world_guard = world.lock().unwrap();
-            
-            use fcad_core::infrastructure::ecs::ncs::{LayerStandards, ActiveLayer};
+
+            use fcad_core::infrastructure::ecs::ncs::{ActiveLayer, LayerStandards};
             let mut standards = LayerStandards::new();
             if let Ok(content) = std::fs::read_to_string(ncs_path) {
                 if let Err(e) = standards.load_from_yaml(&content) {
                     eprintln!("Error al cargar catálogo NCS: {}", e);
                 } else {
-                    println!("Catálogo NCS cargado: {} capas registradas.", standards.catalog.len());
+                    println!(
+                        "Catálogo NCS cargado: {} capas registradas.",
+                        standards.catalog.len()
+                    );
                 }
             } else {
                 eprintln!("AVISO: No se encontró catálogo NCS inicial.");
             }
-            
+
             world_guard.insert_resource(standards);
             world_guard.insert_resource(ActiveLayer::default());
-            world_guard.insert_resource(fcad_core::domain::viewport::Camera::new(size.width as f32, size.height as f32));
+            world_guard.insert_resource(fcad_core::domain::viewport::Camera::new(
+                size.width as f32,
+                size.height as f32,
+            ));
             drop(world_guard);
             // ------------------------------------
 
@@ -74,10 +86,12 @@ pub fn run() {
                 tauri::Theme::Dark => fcad_core::domain::theme::Theme::midnight(),
                 _ => fcad_core::domain::theme::Theme::midnight(),
             };
-            
-            println!("FragmentCAD: Sistema detectado en modo {:?}. Aplicando tema: {}", 
-                     main_window.theme().unwrap_or(tauri::Theme::Dark), 
-                     theme.name);
+
+            println!(
+                "FragmentCAD: Sistema detectado en modo {:?}. Aplicando tema: {}",
+                main_window.theme().unwrap_or(tauri::Theme::Dark),
+                theme.name
+            );
 
             // Persist detected theme in AppState for get_current_theme
             if let Some(state) = app.try_state::<AppState>() {
@@ -87,13 +101,16 @@ pub fn run() {
             }
 
             let tx_clone = tx.clone();
-            
+
             // Enviar tema inicial al renderer
             let _ = tx_clone.send(fcad_renderer::RenderMessage::UpdateTheme(theme));
 
             main_window.on_window_event(move |event| {
                 if let tauri::WindowEvent::Resized(size) = event {
-                    let _ = tx_clone.send(fcad_renderer::RenderMessage::WindowResize(size.width, size.height));
+                    let _ = tx_clone.send(fcad_renderer::RenderMessage::WindowResize(
+                        size.width,
+                        size.height,
+                    ));
                 }
             });
 

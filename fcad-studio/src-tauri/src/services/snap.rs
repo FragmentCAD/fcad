@@ -7,12 +7,12 @@ impl SnapService {
         state.ortho_enabled = !state.ortho_enabled;
         state.ortho_enabled
     }
-    
+
     pub fn toggle_osnaps(state: &mut SnapState) -> bool {
         state.osnaps_enabled = !state.osnaps_enabled;
         state.osnaps_enabled
     }
-    
+
     pub fn toggle_grid_snap(state: &mut SnapState) -> bool {
         state.grid_snap_enabled = !state.grid_snap_enabled;
         state.grid_snap_enabled
@@ -32,7 +32,7 @@ mod tests {
         assert_eq!(new_state, !initial);
         assert_eq!(state.ortho_enabled, new_state);
     }
-    
+
     #[test]
     fn test_toggle_osnaps() {
         let mut state = SnapState::default();

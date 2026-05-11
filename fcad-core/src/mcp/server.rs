@@ -1,8 +1,8 @@
+use crate::domain::math::primitives::Point2D;
 use serde::{Deserialize, Serialize};
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 use tokio::io::{self, AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::sync::{mpsc, oneshot};
-use crate::domain::math::primitives::Point2D;
 
 /// Comandos enviados desde el servidor MCP hacia el motor ECS.
 #[derive(Debug)]
@@ -78,7 +78,7 @@ impl McpServer {
                 });
             }
         };
-        
+
         match req.method.as_str() {
             "initialize" => Some(JsonRpcResponse {
                 jsonrpc: "2.0".to_string(),
@@ -129,10 +129,14 @@ impl McpServer {
                 Some(JsonRpcResponse {
                     jsonrpc: "2.0".to_string(),
                     result,
-                    error: if is_err { Some(json!({ "code": -32603, "message": "Internal error" })) } else { None },
+                    error: if is_err {
+                        Some(json!({ "code": -32603, "message": "Internal error" }))
+                    } else {
+                        None
+                    },
                     id: req.id,
                 })
-            },
+            }
             "ping" => Some(JsonRpcResponse {
                 jsonrpc: "2.0".to_string(),
                 result: Some(json!("pong")),
@@ -142,7 +146,9 @@ impl McpServer {
             _ => Some(JsonRpcResponse {
                 jsonrpc: "2.0".to_string(),
                 result: None,
-                error: Some(json!({ "code": -32601, "message": format!("Method not found: {}", req.method) })),
+                error: Some(
+                    json!({ "code": -32601, "message": format!("Method not found: {}", req.method) }),
+                ),
                 id: req.id,
             }),
         }
@@ -154,7 +160,11 @@ impl McpServer {
         let arguments = params.get("arguments")?;
 
         // Seguridad: Lista Blanca de herramientas permitidas
-        let allowed_tools = ["generar_entidad_parametrica", "obtener_contexto_actual", "listar_entidades"];
+        let allowed_tools = [
+            "generar_entidad_parametrica",
+            "obtener_contexto_actual",
+            "listar_entidades",
+        ];
         if !allowed_tools.contains(&name) {
             return Some(json!({
                 "isError": true,
@@ -165,33 +175,46 @@ impl McpServer {
         match name {
             "generar_entidad_parametrica" => {
                 let tipo = arguments.get("tipo")?.as_str()?;
-                let layer = arguments.get("layer").and_then(|l| l.as_str()).unwrap_or("0");
-                
+                let layer = arguments
+                    .get("layer")
+                    .and_then(|l| l.as_str())
+                    .unwrap_or("0");
+
                 if tipo == "muro" || tipo == "cuadrado" {
                     let p1_raw = arguments.get("parametros")?.get("p1")?;
                     let p2_raw = arguments.get("parametros")?.get("p2")?;
-                    let thickness = arguments.get("parametros")?.get("thickness").and_then(|v| v.as_f64()).unwrap_or(1.0);
+                    let thickness = arguments
+                        .get("parametros")?
+                        .get("thickness")
+                        .and_then(|v| v.as_f64())
+                        .unwrap_or(1.0);
 
                     let p1 = Point2D::new(p1_raw[0].as_f64()?, p1_raw[1].as_f64()?);
                     let p2 = Point2D::new(p2_raw[0].as_f64()?, p2_raw[1].as_f64()?);
 
                     // CRÍTICO: Paso de mensajes al ECS
-                    let _ = self.cmd_tx.send(McpCommand::GenerateWall {
-                        p1,
-                        p2,
-                        thickness,
-                        layer: layer.to_string(),
-                    }).await;
-                    
+                    let _ = self
+                        .cmd_tx
+                        .send(McpCommand::GenerateWall {
+                            p1,
+                            p2,
+                            thickness,
+                            layer: layer.to_string(),
+                        })
+                        .await;
+
                     return Some(json!({
                         "content": [{ "type": "text", "text": format!("Intención de generar {} recibida.", tipo) }]
                     }));
                 }
                 None
-            },
+            }
             "listar_entidades" => {
                 let (tx, rx) = oneshot::channel();
-                let _ = self.cmd_tx.send(McpCommand::ListEntities { resp: tx }).await;
+                let _ = self
+                    .cmd_tx
+                    .send(McpCommand::ListEntities { resp: tx })
+                    .await;
                 if let Ok(count) = rx.await {
                     Some(json!({
                         "content": [{ "type": "text", "text": format!("Total de entidades geométricas: {}", count) }]
@@ -199,15 +222,13 @@ impl McpServer {
                 } else {
                     None
                 }
-            },
-            "obtener_contexto_actual" => {
-                Some(json!({
-                    "content": [{ 
-                        "type": "text", 
-                        "text": "Contexto NCS: Arquitectónico (A-)." 
-                    }]
-                }))
-            },
+            }
+            "obtener_contexto_actual" => Some(json!({
+                "content": [{
+                    "type": "text",
+                    "text": "Contexto NCS: Arquitectónico (A-)."
+                }]
+            })),
             _ => None,
         }
     }
@@ -221,7 +242,7 @@ mod tests {
     async fn test_mpsc_command_sent() {
         let (tx, mut rx) = mpsc::channel(10);
         let mut server = McpServer::new(tx);
-        
+
         let request = json!({
             "jsonrpc": "2.0",
             "id": 1,
@@ -246,7 +267,7 @@ mod tests {
             McpCommand::GenerateWall { p1, p2, .. } => {
                 assert_eq!(p1.x, 0.0);
                 assert_eq!(p2.x, 10.0);
-            },
+            }
             _ => panic!("Expected GenerateWall command"),
         }
     }

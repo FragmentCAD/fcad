@@ -33,12 +33,12 @@ impl Camera {
     pub fn build_projection_matrix(&self) -> Mat4 {
         let half_width = self.screen_width / 2.0 / self.zoom;
         let half_height = self.screen_height / 2.0 / self.zoom;
-        
+
         Mat4::orthographic_rh(
-            -half_width, 
-            half_width, 
-            -half_height, 
-            half_height, 
+            -half_width,
+            half_width,
+            -half_height,
+            half_height,
             -1.0,
             1.0,
         )
@@ -54,15 +54,15 @@ impl Camera {
 
     pub fn unproject(&self, screen_x: f32, screen_y: f32) -> Vec2 {
         let ndc_x = (screen_x / self.screen_width) * 2.0 - 1.0;
-        let ndc_y = 1.0 - (screen_y / self.screen_height) * 2.0; 
-        
+        let ndc_y = 1.0 - (screen_y / self.screen_height) * 2.0;
+
         let ndc_point = Vec4::new(ndc_x, ndc_y, 0.0, 1.0);
-        
+
         let vp_matrix = self.build_view_projection_matrix();
         let inverse_vp = vp_matrix.inverse();
-        
+
         let world_point = inverse_vp * ndc_point;
-        
+
         Vec2::new(world_point.x, world_point.y)
     }
 
@@ -97,16 +97,22 @@ mod tests {
 
         let world_coord = camera.unproject(mouse_x, mouse_y);
 
-        assert_eq!(world_coord.x, 0.0, "La X del mundo en el centro de pantalla falló");
-        assert_eq!(world_coord.y, 0.0, "La Y del mundo en el centro de pantalla falló");
+        assert_eq!(
+            world_coord.x, 0.0,
+            "La X del mundo en el centro de pantalla falló"
+        );
+        assert_eq!(
+            world_coord.y, 0.0,
+            "La Y del mundo en el centro de pantalla falló"
+        );
     }
-    
+
     #[test]
     fn test_camera_unproject_offset() {
         let mut camera = Camera::new(100.0, 100.0);
         camera.zoom = 1.0;
         camera.position = Vec2::new(10.0, 10.0);
-        
+
         let center = camera.unproject(50.0, 50.0);
         assert!((center.x - 10.0).abs() < f32::EPSILON * 10.0);
         assert!((center.y - 10.0).abs() < f32::EPSILON * 10.0);
@@ -119,8 +125,11 @@ mod tests {
 
         // Pan 100 pixels a la derecha en pantalla -> cámara se mueve a la izquierda
         camera.pan(100.0, 0.0);
-        assert!((camera.position.x - (-100.0)).abs() < 0.01,
-            "Pan derecho debería mover la cámara X negativamente, got: {}", camera.position.x);
+        assert!(
+            (camera.position.x - (-100.0)).abs() < 0.01,
+            "Pan derecho debería mover la cámara X negativamente, got: {}",
+            camera.position.x
+        );
         assert!((camera.position.y - 0.0).abs() < 0.01);
     }
 
@@ -131,8 +140,11 @@ mod tests {
 
         // Pan 100px con zoom x2 = 50 unidades de mundo
         camera.pan(100.0, 0.0);
-        assert!((camera.position.x - (-50.0)).abs() < 0.01,
-            "Pan con zoom 2x debería desplazar la mitad, got: {}", camera.position.x);
+        assert!(
+            (camera.position.x - (-50.0)).abs() < 0.01,
+            "Pan con zoom 2x debería desplazar la mitad, got: {}",
+            camera.position.x
+        );
     }
 
     #[test]
@@ -145,10 +157,18 @@ mod tests {
         camera.zoom_at(2.0, 400.0, 300.0);
         let world_after = camera.unproject(400.0, 300.0);
 
-        assert!((world_before.x - world_after.x).abs() < 0.01,
-            "El punto mundo bajo el centro debe permanecer fijo. Before: {}, After: {}", world_before.x, world_after.x);
-        assert!((world_before.y - world_after.y).abs() < 0.01,
-            "El punto mundo bajo el centro debe permanecer fijo. Before: {}, After: {}", world_before.y, world_after.y);
+        assert!(
+            (world_before.x - world_after.x).abs() < 0.01,
+            "El punto mundo bajo el centro debe permanecer fijo. Before: {}, After: {}",
+            world_before.x,
+            world_after.x
+        );
+        assert!(
+            (world_before.y - world_after.y).abs() < 0.01,
+            "El punto mundo bajo el centro debe permanecer fijo. Before: {}, After: {}",
+            world_before.y,
+            world_after.y
+        );
     }
 
     #[test]
@@ -161,10 +181,18 @@ mod tests {
         camera.zoom_at(3.0, 0.0, 0.0);
         let world_after = camera.unproject(0.0, 0.0);
 
-        assert!((world_before.x - world_after.x).abs() < 0.5,
-            "Esquina mundo X debe permanecer estable. Before: {}, After: {}", world_before.x, world_after.x);
-        assert!((world_before.y - world_after.y).abs() < 0.5,
-            "Esquina mundo Y debe permanecer estable. Before: {}, After: {}", world_before.y, world_after.y);
+        assert!(
+            (world_before.x - world_after.x).abs() < 0.5,
+            "Esquina mundo X debe permanecer estable. Before: {}, After: {}",
+            world_before.x,
+            world_after.x
+        );
+        assert!(
+            (world_before.y - world_after.y).abs() < 0.5,
+            "Esquina mundo Y debe permanecer estable. Before: {}, After: {}",
+            world_before.y,
+            world_after.y
+        );
     }
 
     #[test]
@@ -174,12 +202,20 @@ mod tests {
 
         // Intentar zoom extremadamente pequeño
         camera.zoom_at(0.0001, 400.0, 300.0);
-        assert!(camera.zoom >= 0.001, "El zoom no debe bajar de 0.001, got: {}", camera.zoom);
+        assert!(
+            camera.zoom >= 0.001,
+            "El zoom no debe bajar de 0.001, got: {}",
+            camera.zoom
+        );
 
         // Intentar zoom extremadamente grande
         camera.zoom = 1.0;
         camera.zoom_at(999_999.0, 400.0, 300.0);
-        assert!(camera.zoom <= 100_000.0, "El zoom no debe superar 100000, got: {}", camera.zoom);
+        assert!(
+            camera.zoom <= 100_000.0,
+            "El zoom no debe superar 100000, got: {}",
+            camera.zoom
+        );
     }
 
     #[test]
@@ -196,9 +232,17 @@ mod tests {
         camera.zoom_at(1.5, cursor_x, cursor_y);
         let world_after = camera.unproject(cursor_x, cursor_y);
 
-        assert!((world_before.x - world_after.x).abs() < 0.5,
-            "Zoom después de pan debe anclar correctamente X. Before: {}, After: {}", world_before.x, world_after.x);
-        assert!((world_before.y - world_after.y).abs() < 0.5,
-            "Zoom después de pan debe anclar correctamente Y. Before: {}, After: {}", world_before.y, world_after.y);
+        assert!(
+            (world_before.x - world_after.x).abs() < 0.5,
+            "Zoom después de pan debe anclar correctamente X. Before: {}, After: {}",
+            world_before.x,
+            world_after.x
+        );
+        assert!(
+            (world_before.y - world_after.y).abs() < 0.5,
+            "Zoom después de pan debe anclar correctamente Y. Before: {}, After: {}",
+            world_before.y,
+            world_after.y
+        );
     }
 }

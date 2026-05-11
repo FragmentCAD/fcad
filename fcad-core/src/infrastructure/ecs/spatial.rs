@@ -1,7 +1,7 @@
+use crate::domain::{Deleted, Geometry};
 use bevy_ecs::prelude::*;
-use rstar::{RTree, RTreeObject, AABB, PointDistance};
+use rstar::{PointDistance, RTree, RTreeObject, AABB};
 use std::collections::HashMap;
-use crate::domain::{Geometry, Deleted};
 
 /// Wrapper to store an ECS Entity ID alongside its AABB inside the RTree.
 #[derive(Debug, Clone, PartialEq)]
@@ -79,7 +79,7 @@ pub fn calculate_aabb(geometry: &Geometry) -> AABB<[f64; 2]> {
             AABB::from_corners([min_x, min_y], [max_x, max_y])
         }
         Geometry::Arc(a) => {
-            // Simplified AABB for Arc: treats it as its bounding circle. 
+            // Simplified AABB for Arc: treats it as its bounding circle.
             // In a production CAD, this would precisely compute bezier extremes.
             let min_x = a.center.x - a.radius;
             let min_y = a.center.y - a.radius;
@@ -106,20 +106,28 @@ pub fn sync_spatial_index_system(
     for (entity, geometry) in query.iter() {
         // We remove any potential old footprint to prevent duplicates upon 'Changed'
         if let Some(old_bounds) = spatial_index.entity_bounds.get(&entity).copied() {
-            spatial_index.tree.remove(&SpatialEntity { id: entity, envelope: old_bounds });
+            spatial_index.tree.remove(&SpatialEntity {
+                id: entity,
+                envelope: old_bounds,
+            });
         }
-        
+
         // Insert the fresh AABB
         let envelope = calculate_aabb(geometry);
-        spatial_index.tree.insert(SpatialEntity { id: entity, envelope });
+        spatial_index.tree.insert(SpatialEntity {
+            id: entity,
+            envelope,
+        });
         spatial_index.entity_bounds.insert(entity, envelope);
     }
 
     // Handle Tombstoning: Remove from spatial index if the entity was logically deleted
     for entity in deleted_query.iter() {
         if let Some(old_bounds) = spatial_index.entity_bounds.remove(&entity) {
-            spatial_index.tree.remove(&SpatialEntity { id: entity, envelope: old_bounds });
+            spatial_index.tree.remove(&SpatialEntity {
+                id: entity,
+                envelope: old_bounds,
+            });
         }
     }
 }
-

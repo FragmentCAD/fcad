@@ -67,7 +67,12 @@ pub struct Arc {
 
 impl Arc {
     pub fn new(center: Point2D, radius: f64, start_angle: f64, end_angle: f64) -> Self {
-        Self { center, radius, start_angle, end_angle }
+        Self {
+            center,
+            radius,
+            start_angle,
+            end_angle,
+        }
     }
 }
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]

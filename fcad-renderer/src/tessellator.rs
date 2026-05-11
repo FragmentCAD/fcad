@@ -1,9 +1,7 @@
 use bytemuck::{Pod, Zeroable};
 use lyon::math::point;
 use lyon::path::Path;
-use lyon::tessellation::{
-    BuffersBuilder, FillOptions, FillTessellator, FillVertex, VertexBuffers,
-};
+use lyon::tessellation::{BuffersBuilder, FillOptions, FillTessellator, FillVertex, VertexBuffers};
 
 /// Vértice genérico de geometría compleja rellenada u delineada por Lyon
 #[repr(C)]
@@ -67,15 +65,15 @@ impl GeometryTessellator {
 
         // 1. Construir la ruta geométrica de la dona (Path en lyon)
         let mut builder = Path::builder();
-        
+
         let c = point(center[0], center[1]);
-        
+
         // Círculo exterior (agregarlo en sentido horario)
         builder.add_circle(c, outer_radius, lyon::path::Winding::Positive);
-        
+
         // Círculo interior (agregarlo en sentido anti-horario para crear el hueco subtrativo)
         builder.add_circle(c, inner_radius, lyon::path::Winding::Negative);
-        
+
         let path = builder.build();
 
         // 2. Opciones de Relleno. Ojo: La dona usa regla EvenOdd o NonZero para calar el centro.
@@ -105,24 +103,37 @@ mod tests {
     #[test]
     fn test_tessellate_donut_creates_mesh() {
         let mut tessellator = GeometryTessellator::new();
-        
+
         // Dona de prueba: Centro Origen, Radio Exterior 100, Radio Interior 50
         let color = [1.0, 0.5, 0.0, 1.0]; // Naranja
         let result = tessellator.tessellate_donut([0.0, 0.0], 100.0, 50.0, color);
-        
-        assert!(result.is_ok(), "Falló la teselación de polígonos cóncavos/complejos");
+
+        assert!(
+            result.is_ok(),
+            "Falló la teselación de polígonos cóncavos/complejos"
+        );
         let math_buffer = result.unwrap();
-        
+
         // Constatamos matemáticamente que la malla se generó
-        assert!(!math_buffer.vertices.is_empty(), "La malla no devió producir 0 vértices");
-        assert!(!math_buffer.indices.is_empty(), "La malla no devió producir 0 índices");
-        
+        assert!(
+            !math_buffer.vertices.is_empty(),
+            "La malla no devió producir 0 vértices"
+        );
+        assert!(
+            !math_buffer.indices.is_empty(),
+            "La malla no devió producir 0 índices"
+        );
+
         // Comprobar propagación del color a cada vértice del motor
         for v in math_buffer.vertices.iter() {
             assert_eq!(v.color, color);
         }
-        
+
         // Cada triángulo se define por 3 u16.
-        assert_eq!(math_buffer.indices.len() % 3, 0, "Los índices no son múltiplos puros trigonométricos (3)");
+        assert_eq!(
+            math_buffer.indices.len() % 3,
+            0,
+            "Los índices no son múltiplos puros trigonométricos (3)"
+        );
     }
 }

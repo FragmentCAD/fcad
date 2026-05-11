@@ -89,6 +89,8 @@ pub fn assign_active_layer_system(
     query: Query<Entity, (With<crate::domain::Geometry>, Without<crate::domain::Layer>)>,
 ) {
     for entity in query.iter() {
-        commands.entity(entity).insert(crate::domain::Layer(active_layer.0.clone()));
+        commands
+            .entity(entity)
+            .insert(crate::domain::Layer(active_layer.0.clone()));
     }
 }

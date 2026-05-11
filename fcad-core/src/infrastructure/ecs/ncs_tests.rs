@@ -13,13 +13,15 @@ layers:
     line_type: "Continuous"
 "##;
         let mut standards = LayerStandards::new();
-        standards.load_from_yaml(yaml).expect("Failed to parse YAML");
+        standards
+            .load_from_yaml(yaml)
+            .expect("Failed to parse YAML");
 
         let wall = standards.get_layer("A-WALL").expect("Layer not found");
         assert_eq!(wall.name, "A-WALL");
         assert_eq!(wall.line_weight, 0.35);
         assert_eq!(wall.line_type, "Continuous");
-        
+
         let color = standards.get_color("A-WALL");
         assert_eq!(color, [1.0, 0.0, 0.0, 1.0]);
     }
@@ -48,7 +50,7 @@ layers:
     line_type: "Continuous"
 "##;
         standards.load_from_yaml(yaml).unwrap();
-        
+
         // Esta función aún no existe -> Fallo de compilación o ejecución
         let a_layers = standards.get_layers_by_discipline("A");
         assert_eq!(a_layers.len(), 1);
@@ -64,24 +66,26 @@ layers:
 
     #[test]
     fn test_auto_assign_active_layer() {
-        use bevy_ecs::prelude::*;
-        use crate::domain::Geometry;
         use crate::domain::math::primitives::Point2D;
-        use crate::infrastructure::ecs::ncs::{ActiveLayer, assign_active_layer_system};
-        
+        use crate::domain::Geometry;
+        use crate::infrastructure::ecs::ncs::{assign_active_layer_system, ActiveLayer};
+        use bevy_ecs::prelude::*;
+
         let mut world = World::new();
         world.insert_resource(ActiveLayer("A-WALL".to_string()));
-        
+
         // Spawn entity without Layer
         let entity = world.spawn(Geometry::Point(Point2D::new(0.0, 0.0))).id();
-        
+
         // Run system
         let mut schedule = Schedule::default();
         schedule.add_systems(assign_active_layer_system);
         schedule.run(&mut world);
-        
+
         // Assert
-        let layer = world.get::<crate::domain::Layer>(entity).expect("Layer was not assigned");
+        let layer = world
+            .get::<crate::domain::Layer>(entity)
+            .expect("Layer was not assigned");
         assert_eq!(layer.0, "A-WALL");
     }
 }

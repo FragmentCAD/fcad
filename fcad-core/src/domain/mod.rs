@@ -1,9 +1,9 @@
-pub mod math;
 pub mod architecture;
 pub mod generators;
+pub mod math;
 pub mod theme;
-pub mod viewport;
 #[cfg(test)]
 mod theme_tests;
+pub mod viewport;
 
 pub use crate::infrastructure::ecs::components::*;
