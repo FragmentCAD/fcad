@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 use std::sync::Arc;
 use bytemuck::{Pod, Zeroable};
-use fcad_renderer::camera::Camera;
+use fcad_core::domain::viewport::Camera;
 use winit::{
     application::ApplicationHandler,
     error::EventLoopError,

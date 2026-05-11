@@ -1,6 +1,6 @@
 use bevy_ecs::prelude::*;
 use fcad_core::domain::{Geometry, Layer, ColorOverride};
-use fcad_core::domain::math::primitives::{Line, Point2D, Rectangle};
+use fcad_core::domain::math::primitives::{Line, Point2D};
 use fcad_core::infrastructure::ecs::ncs::LayerStandards;
 use std::collections::HashMap;
 
@@ -68,17 +68,20 @@ impl RenderOptimizer {
 
         // 2. Procesar Modificaciones
         for (entity, geometry, layer, color_override) in changed {
-            // Simplificación: Eliminamos y re-añadimos para cambios de tipo o tamaño de slots
-            // En el futuro podemos optimizar si el número de líneas coincide
-            if let Some(indices) = self.entity_to_index.remove(&entity) {
-                for index in indices {
-                    self.instances[index].thickness = 0.0;
-                    self.free_slots.push(index);
-                    self.dirty_ranges.push(index);
+            // Solo procesar como cambio si la entidad ya existe en el optimizador
+            if self.entity_to_index.contains_key(&entity) {
+                // Simplificación: Eliminamos y re-añadimos para cambios de tipo o tamaño de slots
+                // En el futuro podemos optimizar si el número de líneas coincide
+                if let Some(indices) = self.entity_to_index.remove(&entity) {
+                    for index in indices {
+                        self.instances[index].thickness = 0.0;
+                        self.free_slots.push(index);
+                        // Don't mark as dirty here - we'll mark it when we add the new geometry
+                    }
                 }
+                // Re-procesar como adición (marcará dirty en add_geometry)
+                self.add_geometry(entity, geometry, layer, color_override);
             }
-            // Re-procesar como adición
-            self.add_geometry(entity, geometry, layer, color_override);
         }
 
         // 3. Procesar Adiciones
