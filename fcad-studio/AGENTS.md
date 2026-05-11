@@ -54,6 +54,14 @@ return <div>{count}</div>
 ### Comunicación con Rust (Tauri IPC)
 *   Nunca llames a `invoke('comando_rust')` directamente en un componente UI.
 *   Crea un archivo `api.ts` dentro del módulo correspondiente que envuelva la llamada y tipe la respuesta.
+*   Para mutaciones CAD, usa el Command Gateway tipado y el flujo `InputIntent → DomainCommand → DomainEventBatch`.
+*   Aplica eventos del Core en Signals usando batches atómicos; no reconstruyas verdad de dominio en TS.
+
+### Referencias normativas
+*   `docs/architecture/studio-ui-state-model.md`
+*   `docs/architecture/ipc-command-gateway.md`
+*   `skills/fcad-studio-architecture/SKILL.md`
+*   `skills/fcad-ipc-boundary/SKILL.md`
 
 ### Rendimiento Crítico
 *   **El Viewport es Sagrado:** El área central de la pantalla es transparente. Nunca pongas un `div` con fondo sólido sobre el área de dibujo, o taparás el motor WGPU.

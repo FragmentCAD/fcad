@@ -25,6 +25,14 @@ src/
 1.  **Data-Oriented Design (DOD):** Minimiza los saltos en memoria. Agrupa datos similares en buffers contiguos.
 2.  **WGSL Safety:** Valida los shaders en tiempo de compilación.
 3.  **Precision:** Usa `f32` para renderizado (GPU standard) pero asegúrate de que la traslación desde `f64` del core sea estable cerca del origen.
+4.  **Estado Derivado:** El renderer consume `RenderInvalidation`s y caches reconstruibles; nunca decide dominio CAD ni ownership semántico.
+5.  **Capas Efímeras:** Preview, hover, selección y debug deben estar separados de la capa persistente del documento.
+
+### Referencias normativas
+* `docs/architecture/renderer-derived-state-model.md`
+* `docs/architecture/gpu-resource-lifecycle.md`
+* `docs/architecture/render-invalidation-contract.md`
+* `skills/fcad-renderer-architecture/SKILL.md`
 
 ## 3. Visual TDD
 - Cada técnica de renderizado nueva debe venir con un `example/` que permita verificar visualmente el resultado antes de integrarlo en el Studio.

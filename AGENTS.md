@@ -50,10 +50,21 @@ Referencia normativa:
 - `docs/architecture/command-bus-and-events.md`
 - `docs/architecture/render-invalidation-contract.md`
 - `docs/architecture/ai-runtime-bridge.md`
+- `docs/architecture/ipc-command-gateway.md`
+- `docs/architecture/studio-ui-state-model.md`
+- `docs/architecture/renderer-derived-state-model.md`
+- `docs/architecture/gpu-resource-lifecycle.md`
+- `docs/architecture/configuration-and-standards-model.md`
+- `docs/architecture/testing-strategy.md`
 - `docs/roadmap/ai-first-v0-roadmap.md`
 
-Skill local obligatoria para agentes:
+Skills locales obligatorias para agentes:
 - `skills/fcad-ecs-authority/SKILL.md` — cargarla cuando una tarea toque ECS, Core, sincronización Renderer/Tauri, estado CAD, MCP o herramientas IA.
+- `skills/fcad-ipc-boundary/SKILL.md` — cargarla cuando una tarea toque Tauri IPC, comandos, eventos, channels o sincronización.
+- `skills/fcad-studio-architecture/SKILL.md` — cargarla cuando una tarea toque `fcad-studio`, Preact, Signals, herramientas CAD o UI state.
+- `skills/fcad-renderer-architecture/SKILL.md` — cargarla cuando una tarea toque `fcad-renderer`, WGPU, buffers, shaders, preview o invalidaciones.
+- `skills/fcad-config-assets/SKILL.md` — cargarla cuando una tarea toque `fcad-assets`, estándares, schemas, perfiles o configuración.
+- `skills/fcad-testing-strategy/SKILL.md` — cargarla cuando una tarea agregue/cambie tests o contratos de validación.
 
 ## 3. Dinámica del Orquestador y Reglas Operativas
 1.  **TDD Iterativo y Verificado:** Para flujos complejos de diseño (ej. *precision-drawing-engine* e *interactive tests*) usamos metodologías TDD. Si escribes funciones nuevas, implementa la batería de pruebas en Rust.

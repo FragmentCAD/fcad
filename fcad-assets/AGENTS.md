@@ -26,6 +26,12 @@ standards/
 1.  **Inmutabilidad de Versiones:** No modifiques archivos de estándares existentes sin una propuesta (RFC) en `fcad-meta`.
 2.  **Metadatos IA:** Cada bloque DXF debe ir acompañado de un archivo `.json` con el mismo nombre que describa semánticamente el bloque para que la IA sepa cuándo y cómo usarlo.
 3.  **Validación:** Antes de subir un YAML, asegúrate de que cumple con el esquema definido.
+4.  **Configuración Extensible:** Los defaults no deben bloquear overrides de usuario, workspace o proyecto.
+5.  **Sin Hardcode:** Capas, grosores, estilos, materiales y templates configurables no deben duplicarse como constantes en Rust/TS.
+
+### Referencias normativas
+* `docs/architecture/configuration-and-standards-model.md`
+* `skills/fcad-config-assets/SKILL.md`
 
 ---
 **Nota para el Agente:** Mantén la memoria limpia y organizada. Eres el bibliotecario de FragmentCAD.
