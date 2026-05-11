@@ -70,3 +70,26 @@ impl Arc {
         Self { center, radius, start_angle, end_angle }
     }
 }
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct Rectangle {
+    pub p1: Point2D,
+    pub p2: Point2D,
+}
+
+impl Rectangle {
+    pub fn new(p1: Point2D, p2: Point2D) -> Self {
+        Self { p1, p2 }
+    }
+
+    pub fn width(&self) -> f64 {
+        (self.p1.x - self.p2.x).abs()
+    }
+
+    pub fn height(&self) -> f64 {
+        (self.p1.y - self.p2.y).abs()
+    }
+
+    pub fn area(&self) -> f64 {
+        self.width() * self.height()
+    }
+}

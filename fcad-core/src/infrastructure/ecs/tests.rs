@@ -4,7 +4,7 @@ mod tests {
     use rstar::AABB;
     use crate::domain::{Geometry, Layer, Deleted};
     use crate::infrastructure::ecs::spatial::{SpatialIndex, sync_spatial_index_system};
-    use crate::domain::math::primitives::{Line, Point2D};
+    use crate::domain::math::primitives::{Line, Point2D, Rectangle};
 
     #[test]
     fn test_ecs_insert_and_query_layer() {
@@ -99,5 +99,21 @@ mod tests {
             .collect();
             
         assert_eq!(intersections_after_delete.len(), 0, "Deleted entity should have been removed from the R-Tree");
+    }
+
+    #[test]
+    fn test_rectangle_geometry() {
+        let mut world = World::new();
+        let rect = Rectangle::new(Point2D::new(0.0, 0.0), Point2D::new(10.0, 5.0));
+        let entity = world.spawn(Geometry::Rectangle(rect)).id();
+        
+        let mut query = world.query::<&Geometry>();
+        let geo = query.single(&world);
+        
+        if let Geometry::Rectangle(r) = geo {
+            assert_eq!(r.area(), 50.0);
+        } else {
+            panic!("Expected Geometry::Rectangle");
+        }
     }
 }

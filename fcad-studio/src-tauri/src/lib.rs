@@ -2,152 +2,13 @@ use tauri::Manager;
 use std::sync::{Arc, Mutex};
 use fcad_core::infrastructure::ecs::spatial::SpatialIndex;
 use fcad_core::application::tools::ToolManager;
-use fcad_core::application::tools::space_tool::SpaceTool;
-use fcad_core::application::snap::{SnapState, WorldGeometryProvider};
 
-// Estado global para la aplicación
-struct AppState {
-    spatial_index: Mutex<SpatialIndex>,
-    render_tx: Mutex<std::sync::mpsc::Sender<fcad_renderer::RenderMessage>>,
-    tool_manager: Mutex<ToolManager>,
-    world: Arc<Mutex<bevy_ecs::world::World>>,
-    zoom: Mutex<f32>,
-}
+pub mod commands;
+pub mod state;
+pub mod services;
+pub mod models;
 
-#[tauri::command]
-fn get_snap_state(state: tauri::State<'_, AppState>) -> SnapState {
-    let tm = state.tool_manager.lock().unwrap();
-    tm.snap_engine.state
-}
-
-#[tauri::command]
-fn toggle_ortho(state: tauri::State<'_, AppState>) -> bool {
-    let mut tm = state.tool_manager.lock().unwrap();
-    tm.snap_engine.state.ortho_enabled = !tm.snap_engine.state.ortho_enabled;
-    tm.snap_engine.state.ortho_enabled
-}
-
-#[tauri::command]
-fn toggle_osnaps(state: tauri::State<'_, AppState>) -> bool {
-    let mut tm = state.tool_manager.lock().unwrap();
-    tm.snap_engine.state.osnaps_enabled = !tm.snap_engine.state.osnaps_enabled;
-    tm.snap_engine.state.osnaps_enabled
-}
-
-#[tauri::command]
-fn toggle_grid_snap(state: tauri::State<'_, AppState>) -> bool {
-    let mut tm = state.tool_manager.lock().unwrap();
-    tm.snap_engine.state.grid_snap_enabled = !tm.snap_engine.state.grid_snap_enabled;
-    tm.snap_engine.state.grid_snap_enabled
-}
-
-#[tauri::command]
-fn hit_test(state: tauri::State<'_, AppState>, x: f64, y: f64) -> Vec<String> {
-    let index = state.spatial_index.lock().unwrap();
-    let results = index.query_point(x, y);
-    
-    // Convertimos los Entity IDs a String para enviarlos al frontend
-    let ids: Vec<String> = results.iter().map(|e| format!("{:?}", e)).collect();
-    
-    if !ids.is_empty() {
-        println!("Hit Test at ({}, {}): Intersected IDs: {:?}", x, y, ids);
-    }
-    
-    ids
-}
-
-#[tauri::command]
-fn update_viewport_rect(window: tauri::Window, state: tauri::State<'_, AppState>, x: f64, y: f64, width: f64, height: f64) {
-    let factor = window.scale_factor().unwrap_or(1.0);
-    if let Ok(tx) = state.render_tx.lock() {
-        let _ = tx.send(fcad_renderer::RenderMessage::ViewportUpdate(fcad_renderer::ViewportRect {
-            x: (x * factor) as u32,
-            y: (y * factor) as u32,
-            width: (width * factor) as u32,
-            height: (height * factor) as u32,
-        }));
-    }
-}
-
-/// Comando IPC para Zoom de cámara (enviado desde React onWheel).
-#[tauri::command]
-fn send_camera_zoom(window: tauri::Window, state: tauri::State<'_, AppState>, factor: f32, anchor_x: f32, anchor_y: f32) {
-    let scale = window.scale_factor().unwrap_or(1.0) as f32;
-    if let Ok(tx) = state.render_tx.lock() {
-        let _ = tx.send(fcad_renderer::RenderMessage::CameraZoom {
-            factor,
-            anchor_x: anchor_x * scale,
-            anchor_y: anchor_y * scale,
-        });
-    }
-    // Sincronizar zoom en el estado para el SnapEngine
-    let mut z = state.zoom.lock().unwrap();
-    *z = (*z * factor).clamp(0.001, 100_000.0);
-}
-
-/// Comando IPC para Pan de cámara (enviado desde React middle-drag).
-#[tauri::command]
-fn send_camera_pan(window: tauri::Window, state: tauri::State<'_, AppState>, dx: f32, dy: f32) {
-    let scale = window.scale_factor().unwrap_or(1.0) as f32;
-    if let Ok(tx) = state.render_tx.lock() {
-        let _ = tx.send(fcad_renderer::RenderMessage::CameraPan { 
-            dx: dx * scale, 
-            dy: dy * scale 
-        });
-    }
-}
-
-/// Activa una herramienta por nombre. Actualmente soporta: "space", "none".
-#[tauri::command]
-fn set_active_tool(state: tauri::State<'_, AppState>, tool_name: String) -> String {
-    let mut tm = state.tool_manager.lock().unwrap();
-    match tool_name.as_str() {
-        "space" => {
-            tm.set_tool(Box::new(SpaceTool::new()));
-            "space".to_string()
-        }
-        "none" | "" => {
-            tm.clear_tool();
-            "none".to_string()
-        }
-        other => format!("unknown tool: {}", other),
-    }
-}
-
-/// Devuelve el nombre de la herramienta activa.
-#[tauri::command]
-fn get_active_tool(state: tauri::State<'_, AppState>) -> String {
-    let tm = state.tool_manager.lock().unwrap();
-    tm.active_tool_name().unwrap_or("none").to_string()
-}
-
-/// Envía un clic del usuario al ToolManager.
-/// Devuelve un JSON con la respuesta de la herramienta.
-#[tauri::command]
-fn send_tool_click(window: tauri::Window, state: tauri::State<'_, AppState>, button: String, x: f32, y: f32) -> String {
-    let scale = window.scale_factor().unwrap_or(1.0) as f32;
-    use fcad_core::application::input::{InputEvent, MouseButton};
-    let btn = match button.as_str() {
-        "left" => MouseButton::Left,
-        "right" => MouseButton::Right,
-        "middle" => MouseButton::Middle,
-        _ => MouseButton::Left,
-    };
-    let event = InputEvent::Click { 
-        button: btn, 
-        x: x * scale, 
-        y: y * scale 
-    };
-
-    let mut tm = state.tool_manager.lock().unwrap();
-    let index = state.spatial_index.lock().unwrap();
-    let world = state.world.lock().unwrap();
-    let zoom = state.zoom.lock().unwrap();
-    
-    let provider = WorldGeometryProvider { world: &world };
-    let response = tm.process_input(&event, &index, &provider, *zoom);
-    format!("{:?}", response)
-}
+use crate::state::AppState;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -160,27 +21,76 @@ pub fn run() {
             render_tx: Mutex::new(tx.clone()),
             tool_manager: Mutex::new(ToolManager::new()),
             world: world.clone(),
-            zoom: Mutex::new(1.0),
+            current_theme: Mutex::new(fcad_core::domain::theme::Theme::default()),
         })
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
-            hit_test,
-            update_viewport_rect,
-            send_camera_zoom,
-            send_camera_pan,
-            set_active_tool,
-            get_active_tool,
-            send_tool_click,
-            toggle_ortho,
-            toggle_osnaps,
-            toggle_grid_snap,
-            get_snap_state,
+            commands::hit_test,
+            commands::update_viewport_rect,
+            commands::send_camera_zoom,
+            commands::send_camera_pan,
+            commands::set_active_tool,
+            commands::get_active_tool,
+            commands::send_tool_click,
+            commands::send_tool_move,
+            commands::toggle_grid_snap,
+            commands::get_snap_state,
+            commands::get_current_theme,
+            commands::get_themes_list,
+            commands::switch_theme,
+            commands::get_layers,
+            commands::get_adapted_layers,
+            commands::set_active_layer,
         ])
         .setup(move |app| {
             let main_window = Arc::new(app.get_webview_window("main").unwrap());
             let size = main_window.inner_size().unwrap_or(tauri::PhysicalSize::new(800, 600));
+
+            // --- Inicialización de Capas (NCS) ---
+            let ncs_path = std::path::Path::new("..").join("..").join("fcad-assets").join("standards").join("layers").join("ncs_layers_A.yaml");
+            let mut world_guard = world.lock().unwrap();
             
+            use fcad_core::infrastructure::ecs::ncs::{LayerStandards, ActiveLayer};
+            let mut standards = LayerStandards::new();
+            if let Ok(content) = std::fs::read_to_string(ncs_path) {
+                if let Err(e) = standards.load_from_yaml(&content) {
+                    eprintln!("Error al cargar catálogo NCS: {}", e);
+                } else {
+                    println!("Catálogo NCS cargado: {} capas registradas.", standards.catalog.len());
+                }
+            } else {
+                eprintln!("AVISO: No se encontró catálogo NCS inicial.");
+            }
+            
+            world_guard.insert_resource(standards);
+            world_guard.insert_resource(ActiveLayer::default());
+            world_guard.insert_resource(fcad_core::domain::viewport::Camera::new(size.width as f32, size.height as f32));
+            drop(world_guard);
+            // ------------------------------------
+
+            // Detección automática de tema basado en el sistema operativo
+            let theme = match main_window.theme().unwrap_or(tauri::Theme::Dark) {
+                tauri::Theme::Light => fcad_core::domain::theme::Theme::architect(),
+                tauri::Theme::Dark => fcad_core::domain::theme::Theme::midnight(),
+                _ => fcad_core::domain::theme::Theme::midnight(),
+            };
+            
+            println!("FragmentCAD: Sistema detectado en modo {:?}. Aplicando tema: {}", 
+                     main_window.theme().unwrap_or(tauri::Theme::Dark), 
+                     theme.name);
+
+            // Persist detected theme in AppState for get_current_theme
+            if let Some(state) = app.try_state::<AppState>() {
+                if let Ok(mut current) = state.current_theme.lock() {
+                    *current = theme.clone();
+                }
+            }
+
             let tx_clone = tx.clone();
+            
+            // Enviar tema inicial al renderer
+            let _ = tx_clone.send(fcad_renderer::RenderMessage::UpdateTheme(theme));
+
             main_window.on_window_event(move |event| {
                 if let tauri::WindowEvent::Resized(size) = event {
                     let _ = tx_clone.send(fcad_renderer::RenderMessage::WindowResize(size.width, size.height));
@@ -188,9 +98,11 @@ pub fn run() {
             });
 
             fcad_renderer::spawn_render_thread(main_window, size.width, size.height, world, rx);
+
+            println!("FragmentCAD: Setup complete. Waiting for frontend bootstrap.");
+
             Ok(())
         })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
-

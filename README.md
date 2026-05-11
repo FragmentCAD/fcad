@@ -24,6 +24,32 @@ Este monorepo agrupa todos los componentes clave del ecosistema FragmentCAD en u
     *   TailwindCSS + shadcn/ui para el sistema de diseño.
     *   Vite como bundler.
 
+## Ley Arquitectónica: Core/ECS es la Fuente de Verdad
+
+FragmentCAD se construye sobre una regla no negociable: **el documento CAD vive en `fcad-core` dentro del ECS**. Todo lo demás es una vista, un adaptador o una optimización derivada.
+
+| Pieza | Responsabilidad |
+|-------|-----------------|
+| `fcad-core` | Mantiene la verdad del documento: entidades, componentes, comandos, eventos, validaciones y persistencia. |
+| `fcad-studio` | Emite intenciones de usuario por Tauri/IPC. No duplica estado geométrico ni decide reglas de dominio. |
+| `fcad-renderer` | Dibuja consecuencias del estado del Core. Puede cachear buffers GPU, pero no posee estado semántico. |
+| MCP | Es un adaptador externo para agentes y automatización; no es el runtime interno del CAD. |
+| IA nativa | Propone intenciones verificables; el Core valida, previsualiza y recién después commitea. |
+
+El flujo base es:
+
+```text
+InputIntent → DomainCommand → ECS Mutation → DomainEvent → RenderInvalidation → Renderer Update
+```
+
+Documentos normativos:
+
+* [Modelo de autoridad ECS](./docs/architecture/ecs-authority-model.md)
+* [Command Bus y eventos](./docs/architecture/command-bus-and-events.md)
+* [Contrato de invalidación render](./docs/architecture/render-invalidation-contract.md)
+* [AI Runtime Bridge](./docs/architecture/ai-runtime-bridge.md)
+* [Roadmap IA-first v0](./docs/roadmap/ai-first-v0-roadmap.md)
+
 ## Flujo de Trabajo y Ejecución
 
 Debido a que este repositorio contiene tanto código compilado nativo (Rust) como código web empaquetado (TS/Vite), sigue estas instrucciones:

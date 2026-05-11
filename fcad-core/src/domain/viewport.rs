@@ -1,6 +1,7 @@
 use glam::{Mat4, Vec2, Vec3, Vec4};
 
 /// Estructura que maneja la cámara 2D (Pan & Zoom) y la conversión de coordenadas espaciales.
+#[derive(Debug, Clone, bevy_ecs::system::Resource)]
 pub struct Camera {
     pub position: Vec2,
     pub zoom: f32,
@@ -29,12 +30,7 @@ impl Camera {
         }
     }
 
-    /// Constuye la Matriz de Proyección Ortográfica.
-    /// Mapea las dimensiones de la pantalla escaladas por el zoom hacia las coordenadas normalizadas (NDC).
     pub fn build_projection_matrix(&self) -> Mat4 {
-        // La proyección ortográfica establece cuánto "mundo" vemos.
-        // Si el tamaño de pantalla es 1024x768, y el zoom es 1.0, 
-        // vemos exactamente 1024 unidades a lo ancho.
         let half_width = self.screen_width / 2.0 / self.zoom;
         let half_height = self.screen_height / 2.0 / self.zoom;
         
@@ -43,67 +39,45 @@ impl Camera {
             half_width, 
             -half_height, 
             half_height, 
-            -1.0, // Z near (2D no importa mucho)
-            1.0,  // Z far
+            -1.0,
+            1.0,
         )
     }
 
-    /// Construye la Matriz de Vista.
-    /// Desplaza el mundo en sentido inverso a dónde mira la cámara (Translación).
     pub fn build_view_matrix(&self) -> Mat4 {
         Mat4::from_translation(Vec3::new(-self.position.x, -self.position.y, 0.0))
     }
 
-    /// Matriz combinada View-Projection, lista para enviarse mediante Buffers Puros (Uniforms) al shader de wgpu.
     pub fn build_view_projection_matrix(&self) -> Mat4 {
         self.build_projection_matrix() * self.build_view_matrix()
     }
 
-    /// Convierte coordenadas de pantalla en píxeles (Screen Space) a coordenadas reales del motor CAD (World Space).
     pub fn unproject(&self, screen_x: f32, screen_y: f32) -> Vec2 {
-        // 1. Transformar Screen Space a Normalized Device Coordinates (NDC) [-1.0, 1.0]
         let ndc_x = (screen_x / self.screen_width) * 2.0 - 1.0;
-        // En gráficos de pantalla, la Y de la ventana (ratón) crece hacia abajo. 
-        // NDC usualmente crece hacia arriba (para matemáticas puras WGPU/GL).
         let ndc_y = 1.0 - (screen_y / self.screen_height) * 2.0; 
         
-        // El punto de entrada está en el plano Z 0
         let ndc_point = Vec4::new(ndc_x, ndc_y, 0.0, 1.0);
         
-        // 2. Extraer el Universo Opuesto (Inversa de Matriz V/P)
         let vp_matrix = self.build_view_projection_matrix();
         let inverse_vp = vp_matrix.inverse();
         
-        // 3. Multiplicar Matriz Inversa por punto Vector4
         let world_point = inverse_vp * ndc_point;
         
-        // Devolvemos matemática pura en el mundo (Ignoramos perspectiva W ya que somos puramente Ortonormales 2D)
         Vec2::new(world_point.x, world_point.y)
     }
-    /// Aplica un desplazamiento (Pan) a la cámara.
-    /// `dx` y `dy` son deltas en **píxeles de pantalla** (del arrastre del ratón).
-    /// Se convierten a unidades de mundo dividiéndolos por el zoom actual.
+
     pub fn pan(&mut self, dx: f32, dy: f32) {
-        // dx positivo en pantalla = mover el mundo a la izquierda = cámara a la derecha negativo
-        // dy positivo en pantalla (ratón baja) = mover el mundo arriba = cámara sube (Y invertida)
         self.position.x -= dx / self.zoom;
         self.position.y += dy / self.zoom;
     }
 
-    /// Aplica un zoom centrado en la posición del cursor (screen_x, screen_y).
-    /// `factor` > 1.0 acerca, `factor` < 1.0 aleja.
-    /// La coordenada mundo bajo el cursor permanece fija visualmente después del zoom.
     pub fn zoom_at(&mut self, factor: f32, screen_x: f32, screen_y: f32) {
-        // 1. Registrar la posición mundo bajo el cursor ANTES del zoom
         let world_before = self.unproject(screen_x, screen_y);
 
-        // 2. Aplicar el factor de zoom con límites
         self.zoom = (self.zoom * factor).clamp(0.001, 100_000.0);
 
-        // 3. Registrar la posición mundo bajo el cursor DESPUÉS del zoom
         let world_after = self.unproject(screen_x, screen_y);
 
-        // 4. Compensar la diferencia para anclar el punto bajo el cursor
         self.position.x += world_before.x - world_after.x;
         self.position.y += world_before.y - world_after.y;
     }
@@ -228,4 +202,3 @@ mod tests {
             "Zoom después de pan debe anclar correctamente Y. Before: {}, After: {}", world_before.y, world_after.y);
     }
 }
-

@@ -12,6 +12,7 @@ bevy_ecs = { workspace = true }
 
 # Spatial Index
 rstar = "0.12"
+glam = { workspace = true }
 
 # Math & Geometry
 geo = "0.27"

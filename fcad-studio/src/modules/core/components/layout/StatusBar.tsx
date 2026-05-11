@@ -19,7 +19,7 @@ export function StatusBar() {
   }, []);
 
   const toggle = async (cmd: string) => {
-    const newVal = await invoke<boolean>(cmd);
+    await invoke<boolean>(cmd);
     // Refresh the whole state for simplicity
     invoke<SnapState>("get_snap_state").then(setSnapState).catch(console.error);
   };

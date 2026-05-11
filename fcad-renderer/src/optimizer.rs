@@ -1,7 +1,7 @@
 use bevy_ecs::prelude::*;
 use fcad_core::domain::{Geometry, Layer, ColorOverride};
-use fcad_core::domain::math::primitives::Line;
-use fcad_core::infrastructure::ecs::ncs::NcsDictionary;
+use fcad_core::domain::math::primitives::{Line, Point2D};
+use fcad_core::infrastructure::ecs::ncs::LayerStandards;
 use std::collections::HashMap;
 
 #[repr(C)]
@@ -16,8 +16,8 @@ pub struct LineInstance {
 
 /// Manejador de sincronización diferencial entre ECS y Hardware (VRAM).
 pub struct RenderOptimizer {
-    /// Mapeo de Entidad ECS a posición en el Array contiguo
-    pub entity_to_index: HashMap<Entity, usize>,
+    /// Mapeo de Entidad ECS a posiciones en el Array contiguo (soporta geometrías multi-línea como Rectángulos)
+    pub entity_to_index: HashMap<Entity, Vec<usize>>,
     /// Array contiguo de instancias listo para subir a VRAM
     pub instances: Vec<LineInstance>,
     /// Índices de ranuras liberadas (para reutilizar cuando se borran entidades)
@@ -26,17 +26,17 @@ pub struct RenderOptimizer {
     // Tracking interno de lo que se debe subir a VRAM este frame
     pub dirty_ranges: Vec<usize>,
 
-    pub ncs_dict: NcsDictionary,
+    pub ncs_dict: LayerStandards,
 }
 
 impl Default for RenderOptimizer {
     fn default() -> Self {
-        Self::new(NcsDictionary::new())
+        Self::new(LayerStandards::new())
     }
 }
 
 impl RenderOptimizer {
-    pub fn new(ncs_dict: NcsDictionary) -> Self {
+    pub fn new(ncs_dict: LayerStandards) -> Self {
         Self {
             entity_to_index: HashMap::new(),
             instances: Vec::new(),
@@ -57,42 +57,71 @@ impl RenderOptimizer {
 
         // 1. Procesar Eliminaciones (Tombstoning)
         for entity in removed {
-            if let Some(index) = self.entity_to_index.remove(&entity) {
-                // Para re-utilizar la ranura y no compactar todo el arreglo (evita writes masivos a VRAM)
-                // Ocultamos la geometría desplazándola y haciéndola transparente o marcando su grosor 0
-                self.instances[index].thickness = 0.0;
-                self.free_slots.push(index);
-                self.dirty_ranges.push(index);
-            }
-        }
-
-        // 2. Procesar Modificaciones
-        for (entity, geometry, layer, color_override) in changed {
-            if let Some(&index) = self.entity_to_index.get(&entity) {
-                if let Geometry::Line(line) = geometry {
-                    self.instances[index] = self.convert_line(&line, layer, color_override);
+            if let Some(indices) = self.entity_to_index.remove(&entity) {
+                for index in indices {
+                    self.instances[index].thickness = 0.0;
+                    self.free_slots.push(index);
                     self.dirty_ranges.push(index);
                 }
             }
         }
 
-        // 3. Procesar Adiciones
-        for (entity, geometry, layer, color_override) in added {
-            if let Geometry::Line(line) = geometry {
-                let instance = self.convert_line(&line, layer, color_override);
-                let index = if let Some(free_index) = self.free_slots.pop() {
-                    self.instances[free_index] = instance;
-                    free_index
-                } else {
-                    let new_index = self.instances.len();
-                    self.instances.push(instance);
-                    new_index
-                };
-                
-                self.entity_to_index.insert(entity, index);
-                self.dirty_ranges.push(index);
+        // 2. Procesar Modificaciones
+        for (entity, geometry, layer, color_override) in changed {
+            // Solo procesar como cambio si la entidad ya existe en el optimizador
+            if self.entity_to_index.contains_key(&entity) {
+                // Simplificación: Eliminamos y re-añadimos para cambios de tipo o tamaño de slots
+                // En el futuro podemos optimizar si el número de líneas coincide
+                if let Some(indices) = self.entity_to_index.remove(&entity) {
+                    for index in indices {
+                        self.instances[index].thickness = 0.0;
+                        self.free_slots.push(index);
+                        // Don't mark as dirty here - we'll mark it when we add the new geometry
+                    }
+                }
+                // Re-procesar como adición (marcará dirty en add_geometry)
+                self.add_geometry(entity, geometry, layer, color_override);
             }
         }
+
+        // 3. Procesar Adiciones
+        for (entity, geometry, layer, color_override) in added {
+            self.add_geometry(entity, geometry, layer, color_override);
+        }
+    }
+
+    fn add_geometry(&mut self, entity: Entity, geometry: &Geometry, layer: Option<&Layer>, color_override: Option<&ColorOverride>) {
+        let lines = match geometry {
+            Geometry::Line(l) => vec![*l],
+            Geometry::Rectangle(r) => vec![
+                Line::new(r.p1, Point2D::new(r.p2.x, r.p1.y)),
+                Line::new(Point2D::new(r.p2.x, r.p1.y), r.p2),
+                Line::new(r.p2, Point2D::new(r.p1.x, r.p2.y)),
+                Line::new(Point2D::new(r.p1.x, r.p2.y), r.p1),
+            ],
+            _ => vec![], // Otros tipos no soportados aún por el renderer 2D simple
+        };
+
+        if lines.is_empty() { return; }
+
+        let mut current_entity_indices = Vec::new();
+
+        for line in lines {
+            let instance = self.convert_line(&line, layer, color_override);
+            let index = if let Some(free_index) = self.free_slots.pop() {
+                self.instances[free_index] = instance;
+                free_index
+            } else {
+                let new_index = self.instances.len();
+                self.instances.push(instance);
+                new_index
+            };
+            
+            current_entity_indices.push(index);
+            self.dirty_ranges.push(index);
+        }
+
+        self.entity_to_index.insert(entity, current_entity_indices);
     }
 
     fn convert_line(&self, line: &Line, layer: Option<&Layer>, color_override: Option<&ColorOverride>) -> LineInstance {
@@ -141,7 +170,7 @@ mod tests {
     #[test]
     fn test_differential_sync_optimizer() {
         let mut world = World::new();
-        let mut optimizer = RenderOptimizer::new(NcsDictionary::new());
+        let mut optimizer = RenderOptimizer::new(LayerStandards::new());
 
         // Inicializamos 10,000 líneas estáticas simuladas
         for i in 0..10_000 {
@@ -193,7 +222,7 @@ mod tests {
         assert_eq!(optimizer.dirty_ranges.len(), 1, "GPU Saturada! Se actualizó más de 1 línea");
         
         // Verificamos el ruteo interno
-        let updated_index = optimizer.entity_to_index[&dynamic_entity];
-        assert_eq!(optimizer.instances[updated_index].end[0], -30.0);
+        let updated_indices = &optimizer.entity_to_index[&dynamic_entity];
+        assert_eq!(optimizer.instances[updated_indices[0]].end[0], -30.0);
     }
 }

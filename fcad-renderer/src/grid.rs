@@ -1,5 +1,5 @@
 use super::Vertex;
-use super::camera::Camera;
+use fcad_core::domain::viewport::Camera;
 
 /// Genera los vértices para una grilla "infinita" basada en la vista actual de la cámara.
 pub fn generate_grid_vertices(camera: &Camera, grid_spacing: f32) -> (Vec<Vertex>, Vec<u16>) {

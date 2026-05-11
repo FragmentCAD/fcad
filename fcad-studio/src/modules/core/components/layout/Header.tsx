@@ -1,10 +1,18 @@
-import { Settings, Play, Save } from "lucide-react";
+import { Settings, Play, Save, Sun, Moon } from "lucide-react";
 import { Button } from "@/modules/core/components/ui/button";
 import { useTranslation } from "react-i18next";
-import i18n from "@/modules/core/lib/i18n"; // Optional if we want a lang switcher
+import i18n from "@/modules/core/lib/i18n";
+import { useTheme } from "@/modules/core/contexts/ThemeContext";
+
 
 export function Header() {
   const { t } = useTranslation();
+  const { currentTheme, switchTheme } = useTheme();
+
+  const toggleTheme = () => {
+    const nextTheme = currentTheme.value?.name === "Midnight" ? "architect" : "midnight";
+    switchTheme(nextTheme);
+  };
 
   return (
     <header className="bg-card flex h-12 items-center justify-between border-b px-4">
@@ -25,6 +33,21 @@ export function Header() {
       <div className="flex items-center gap-2">
         <Button variant="outline" size="sm" className="h-8">
           {t("ui.header.export_block")}
+        </Button>
+
+        {/* Theme Switcher */}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8"
+          onClick={toggleTheme}
+          title="Toggle Theme"
+        >
+          {currentTheme.value?.name === "Midnight" ? (
+            <Sun className="h-4 w-4" />
+          ) : (
+            <Moon className="h-4 w-4" />
+          )}
         </Button>
 
         {/* Toggle Language Temporary Button */}

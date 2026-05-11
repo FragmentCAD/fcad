@@ -23,6 +23,7 @@ yarn-error.log*
 pnpm-debug.log*
 
 # Editor directories and files
+.atl/
 .vscode/
 .idea/
 *.suo
@@ -31,6 +32,7 @@ pnpm-debug.log*
 *.sln
 *.sw?
 .DS_Store
+*.txt
 
 # Environment Variables
 .env

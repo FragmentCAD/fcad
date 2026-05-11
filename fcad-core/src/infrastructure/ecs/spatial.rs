@@ -87,6 +87,13 @@ pub fn calculate_aabb(geometry: &Geometry) -> AABB<[f64; 2]> {
             let max_y = a.center.y + a.radius;
             AABB::from_corners([min_x, min_y], [max_x, max_y])
         }
+        Geometry::Rectangle(r) => {
+            let min_x = f64::min(r.p1.x, r.p2.x);
+            let min_y = f64::min(r.p1.y, r.p2.y);
+            let max_x = f64::max(r.p1.x, r.p2.x);
+            let max_y = f64::max(r.p1.y, r.p2.y);
+            AABB::from_corners([min_x, min_y], [max_x, max_y])
+        }
     }
 }
 

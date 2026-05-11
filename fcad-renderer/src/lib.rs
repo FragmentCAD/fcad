@@ -1,6 +1,5 @@
 use raw_window_handle::{HasDisplayHandle, HasWindowHandle};
 
-pub mod camera;
 pub mod tessellator;
 pub mod optimizer;
 pub mod grid;
@@ -12,8 +11,8 @@ use wgpu::util::DeviceExt;
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct Vertex {
-    position: [f32; 3],
-    color: [f32; 4],
+    pub position: [f32; 3],
+    pub color: [f32; 4],
 }
 
 impl Vertex {
@@ -54,10 +53,10 @@ pub struct ViewportRect {
 pub enum RenderMessage {
     ViewportUpdate(ViewportRect),
     WindowResize(u32, u32),
-    /// Zoom de la cámara: factor multiplicador y posición ancla en pantalla.
-    CameraZoom { factor: f32, anchor_x: f32, anchor_y: f32 },
-    /// Pan de la cámara: delta en píxeles de pantalla.
-    CameraPan { dx: f32, dy: f32 },
+    /// Actualización del tema visual
+    UpdateTheme(fcad_core::domain::theme::Theme),
+    /// Actualización de geometría temporal (feedback visual)
+    UpdateEphemeral(Vec<Vertex>),
 }
 
 pub struct Renderer<'window> {
@@ -75,6 +74,11 @@ pub struct Renderer<'window> {
     pub grid_vertex_buffer: wgpu::Buffer,
     pub grid_index_buffer: wgpu::Buffer,
     pub num_grid_indices: u32,
+    // Ephemeral (Feedback)
+    pub ephemeral_vertex_buffer: wgpu::Buffer,
+    pub num_ephemeral_verts: u32,
+    // Theme
+    pub active_theme: fcad_core::domain::theme::Theme,
 }
 
 impl<'window> Renderer<'window> {
@@ -293,6 +297,14 @@ impl<'window> Renderer<'window> {
             mapped_at_creation: false,
         });
 
+        // Buffer persistente para feedback (1000 vértices de margen)
+        let ephemeral_vertex_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Ephemeral Vertex Buffer"),
+            size: (std::mem::size_of::<Vertex>() * 1000) as u64,
+            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+
         Self {
             surface,
             device,
@@ -307,7 +319,54 @@ impl<'window> Renderer<'window> {
             grid_vertex_buffer,
             grid_index_buffer,
             num_grid_indices: 0,
+            ephemeral_vertex_buffer,
+            num_ephemeral_verts: 0,
+            active_theme: fcad_core::domain::theme::Theme::default(),
         }
+    }
+
+    pub fn update_ephemeral(&mut self, vertices: &[Vertex]) {
+        self.num_ephemeral_verts = vertices.len() as u32;
+        if !vertices.is_empty() {
+            self.queue.write_buffer(&self.ephemeral_vertex_buffer, 0, bytemuck::cast_slice(vertices));
+        }
+    }
+
+    pub fn update_geometry(&mut self, optimizer: &optimizer::RenderOptimizer) {
+        use wgpu::util::DeviceExt;
+        
+        let mut vertices = Vec::new();
+        for inst in optimizer.instances.iter() {
+            if inst.thickness > 0.0 {
+                vertices.push(Vertex {
+                    position: [inst.start[0], inst.start[1], 0.0],
+                    color: inst.color,
+                });
+                vertices.push(Vertex {
+                    position: [inst.end[0], inst.end[1], 0.0],
+                    color: inst.color,
+                });
+            }
+        }
+
+        if vertices.is_empty() {
+            vertices.push(Vertex { position: [0.0; 3], color: [0.0; 4] });
+            self.num_vertices = 0;
+        } else {
+            self.num_vertices = vertices.len() as u32;
+        }
+
+        self.vertex_buffer = self.device.create_buffer_init(
+            &wgpu::util::BufferInitDescriptor {
+                label: Some("Dynamic Vertex Buffer"),
+                contents: bytemuck::cast_slice(&vertices),
+                usage: wgpu::BufferUsages::VERTEX,
+            }
+        );
+    }
+
+    pub fn update_theme(&mut self, theme: fcad_core::domain::theme::Theme) {
+        self.active_theme = theme;
     }
 
     pub fn resize(&mut self, width: u32, height: u32) {
@@ -319,7 +378,7 @@ impl<'window> Renderer<'window> {
     }
 
     /// Actualiza el uniform buffer de la cámara y regenera la grilla.
-    pub fn update_camera(&mut self, camera: &camera::Camera) {
+    pub fn update_camera(&mut self, camera: &fcad_core::domain::viewport::Camera) {
         let vp = camera.build_view_projection_matrix();
         let uniform = CameraUniform {
             view_proj: vp.to_cols_array_2d(),
@@ -366,11 +425,13 @@ impl<'window> Renderer<'window> {
                     view: &view,
                     resolve_target: None,
                     ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color {
-                            r: 0.1,
-                            g: 0.1,
-                            b: 0.1,
-                            a: 1.0,
+                        load: wgpu::LoadOp::Clear({
+                            let c = &self.active_theme.background;
+                            // Parse hex color (simplificado, asumiendo #RRGGBB)
+                            let r = u8::from_str_radix(&c[1..3], 16).unwrap_or(0) as f64 / 255.0;
+                            let g = u8::from_str_radix(&c[3..5], 16).unwrap_or(0) as f64 / 255.0;
+                            let b = u8::from_str_radix(&c[5..7], 16).unwrap_or(0) as f64 / 255.0;
+                            wgpu::Color { r, g, b, a: 1.0 }
                         }),
                         store: wgpu::StoreOp::Store,
                     },
@@ -408,6 +469,12 @@ impl<'window> Renderer<'window> {
             render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
             render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
             render_pass.draw(0..self.num_vertices, 0..1);
+
+            // 3. Draw Ephemeral Feedback (Rubber-banding) on top
+            if self.num_ephemeral_verts > 0 {
+                render_pass.set_vertex_buffer(0, self.ephemeral_vertex_buffer.slice(..));
+                render_pass.draw(0..self.num_ephemeral_verts, 0..1);
+            }
         }
 
         self.queue.submit(std::iter::once(encoder.finish()));
@@ -427,75 +494,22 @@ where
 {
     std::thread::spawn(move || {
         let ncs_yaml = include_str!("../../fcad-assets/standards/layers/ncs_layers_A.yaml");
-        let ncs_dict = fcad_core::infrastructure::ecs::ncs::NcsDictionary::load_from_yaml(ncs_yaml)
-            .unwrap_or_else(|_| fcad_core::infrastructure::ecs::ncs::NcsDictionary::new());
+        let mut ncs_standards = fcad_core::infrastructure::ecs::ncs::LayerStandards::new();
+        let _ = ncs_standards.load_from_yaml(ncs_yaml);
             
-        let mut optimizer = optimizer::RenderOptimizer::new(ncs_dict);
+        let mut optimizer = optimizer::RenderOptimizer::new(ncs_standards);
 
-        // Insertar líneas asociadas a las capas reales del YAML de arquitectura
+        // Iniciamos con el ECS vacío de geometría de prueba
         {
-            let mut w = world.lock().unwrap();
-            w.spawn((
-                fcad_core::domain::Geometry::Line(fcad_core::domain::math::primitives::Line {
-                    start: fcad_core::domain::math::primitives::Point2D::new(-5.0, 5.0),
-                    end: fcad_core::domain::math::primitives::Point2D::new(5.0, -5.0),
-                }),
-                fcad_core::domain::Layer("A-WALL".to_string()),
-            ));
-
-            w.spawn((
-                fcad_core::domain::Geometry::Line(fcad_core::domain::math::primitives::Line {
-                    start: fcad_core::domain::math::primitives::Point2D::new(-5.0, -5.0),
-                    end: fcad_core::domain::math::primitives::Point2D::new(5.0, 5.0),
-                }),
-                fcad_core::domain::Layer("A-DOOR".to_string()),
-            ));
-
-            w.spawn((
-                fcad_core::domain::Geometry::Line(fcad_core::domain::math::primitives::Line {
-                    start: fcad_core::domain::math::primitives::Point2D::new(-8.0, 0.0),
-                    end: fcad_core::domain::math::primitives::Point2D::new(8.0, 0.0),
-                }),
-                fcad_core::domain::Layer("A-GLAZ".to_string()),
-            ));
+            let mut _w = world.lock().unwrap();
         }
 
-        // Sync inicial ECS -> Renderer Optimizer
-        {
-            let mut w = world.lock().unwrap();
-            let mut added_query = w.query_filtered::<(
-                bevy_ecs::entity::Entity, 
-                &fcad_core::domain::Geometry, 
-                Option<&fcad_core::domain::Layer>, 
-                Option<&fcad_core::domain::ColorOverride>
-            ), bevy_ecs::query::Added<fcad_core::domain::Geometry>>();
-            
-            let mut changed_query = w.query_filtered::<(
-                bevy_ecs::entity::Entity, 
-                &fcad_core::domain::Geometry, 
-                Option<&fcad_core::domain::Layer>, 
-                Option<&fcad_core::domain::ColorOverride>
-            ), bevy_ecs::query::Changed<fcad_core::domain::Geometry>>();
-            
-            let mut deleted_query = w.query_filtered::<
-                bevy_ecs::entity::Entity, 
-                bevy_ecs::query::Added<fcad_core::domain::Deleted>
-            >();
-
-            optimizer.sync_system(
-                added_query.iter(&w),
-                changed_query.iter(&w),
-                deleted_query.iter(&w)
-            );
-        }
+        // Sync ECS -> Optimizer se ha movido adentro del frame loop a 60FPS
 
         let mut renderer = pollster::block_on(Renderer::new(window, width, height, &optimizer));
-        let mut cam = camera::Camera::new(width as f32, height as f32);
-        renderer.update_camera(&cam);
         println!("Renderer initialized. Starting 60FPS loop with ECS data...");
         
         let mut current_vp: Option<ViewportRect> = None;
-        let mut camera_dirty = false;
 
         loop {
             // Procesar mensajes pendientes sin bloquear
@@ -503,27 +517,60 @@ where
                 match msg {
                     RenderMessage::ViewportUpdate(vp) => {
                         current_vp = Some(vp);
-                        cam.screen_width = vp.width as f32;
-                        cam.screen_height = vp.height as f32;
-                        camera_dirty = true;
                     }
                     RenderMessage::WindowResize(w, h) => {
                         renderer.resize(w, h);
                     }
-                    RenderMessage::CameraZoom { factor, anchor_x, anchor_y } => {
-                        cam.zoom_at(factor, anchor_x, anchor_y);
-                        camera_dirty = true;
+                    RenderMessage::UpdateTheme(theme) => {
+                        renderer.update_theme(theme);
                     }
-                    RenderMessage::CameraPan { dx, dy } => {
-                        cam.pan(dx, dy);
-                        camera_dirty = true;
+                    RenderMessage::UpdateEphemeral(vertices) => {
+                        renderer.update_ephemeral(&vertices);
                     }
                 }
             }
 
-            if camera_dirty {
-                renderer.update_camera(&cam);
-                camera_dirty = false;
+            let cam = {
+                let mut w = world.lock().unwrap();
+                let cam_clone = w.get_resource::<fcad_core::domain::viewport::Camera>().cloned();
+                
+                let mut added_query = w.query_filtered::<(
+                    bevy_ecs::entity::Entity, 
+                    &fcad_core::domain::Geometry, 
+                    Option<&fcad_core::domain::Layer>, 
+                    Option<&fcad_core::domain::ColorOverride>
+                ), bevy_ecs::query::Added<fcad_core::domain::Geometry>>();
+                
+                let mut changed_query = w.query_filtered::<(
+                    bevy_ecs::entity::Entity, 
+                    &fcad_core::domain::Geometry, 
+                    Option<&fcad_core::domain::Layer>, 
+                    Option<&fcad_core::domain::ColorOverride>
+                ), bevy_ecs::query::Changed<fcad_core::domain::Geometry>>();
+                
+                let mut deleted_query = w.query_filtered::<
+                    bevy_ecs::entity::Entity, 
+                    bevy_ecs::query::Added<fcad_core::domain::Deleted>
+                >();
+
+                optimizer.sync_system(
+                    added_query.iter(&w),
+                    changed_query.iter(&w),
+                    deleted_query.iter(&w)
+                );
+
+                if !optimizer.dirty_ranges.is_empty() {
+                    renderer.update_geometry(&optimizer);
+                    optimizer.dirty_ranges.clear();
+                }
+
+                w.clear_trackers();
+                cam_clone
+            };
+            
+            if let Some(c) = cam {
+                // To avoid drawing duplicates logic could check if dirty here
+                renderer.update_camera(&c);
             }
 
             renderer.draw(current_vp);

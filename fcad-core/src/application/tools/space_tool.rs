@@ -1,5 +1,6 @@
 use super::{Tool, ToolResponse, ToolResult};
 use crate::application::input::{InputEvent, MouseButton};
+use crate::infrastructure::ecs::spatial::SpatialIndex;
 
 /// Estado interno de la SpaceTool.
 #[derive(Debug, Clone, PartialEq)]
@@ -71,7 +72,7 @@ impl Tool for SpaceTool {
         self.current_mouse = [0.0, 0.0];
     }
 
-    fn on_input(&mut self, event: &InputEvent) -> ToolResponse {
+    fn on_input(&mut self, event: &InputEvent, _spatial_index: &SpatialIndex) -> ToolResponse {
         match event {
             InputEvent::PointerMove { x, y } => {
                 self.current_mouse = [*x, *y];
@@ -155,11 +156,12 @@ mod tests {
         let mut tool = SpaceTool::new();
         tool.on_start();
 
+        let si = SpatialIndex::new();
         let response = tool.on_input(&InputEvent::Click {
             button: MouseButton::Left,
             x: 10.0,
             y: 20.0,
-        });
+        }, &si);
 
         assert_eq!(response, ToolResponse::Consumed);
         assert!(matches!(tool.state, SpaceToolState::Drawing { .. }));
@@ -170,21 +172,22 @@ mod tests {
         let mut tool = SpaceTool::new();
         tool.on_start();
 
+        let si = SpatialIndex::new();
         tool.on_input(&InputEvent::Click {
             button: MouseButton::Left,
             x: 0.0,
             y: 0.0,
-        });
+        }, &si);
         tool.on_input(&InputEvent::Click {
             button: MouseButton::Left,
             x: 100.0,
             y: 0.0,
-        });
+        }, &si);
         tool.on_input(&InputEvent::Click {
             button: MouseButton::Left,
             x: 100.0,
             y: 100.0,
-        });
+        }, &si);
 
         if let SpaceToolState::Drawing { ref vertices } = tool.state {
             assert_eq!(vertices.len(), 3);
@@ -199,28 +202,29 @@ mod tests {
         tool.on_start();
 
         // Triángulo
+        let si = SpatialIndex::new();
         tool.on_input(&InputEvent::Click {
             button: MouseButton::Left,
             x: 0.0,
             y: 0.0,
-        });
+        }, &si);
         tool.on_input(&InputEvent::Click {
             button: MouseButton::Left,
             x: 100.0,
             y: 0.0,
-        });
+        }, &si);
         tool.on_input(&InputEvent::Click {
             button: MouseButton::Left,
             x: 50.0,
             y: 100.0,
-        });
+        }, &si);
 
         // Clic cerca del primer punto para cerrar
         let response = tool.on_input(&InputEvent::Click {
             button: MouseButton::Left,
             x: 1.0,
             y: 1.0,
-        });
+        }, &si);
 
         assert!(
             matches!(response, ToolResponse::Completed(ToolResult::Space { ref vertices, .. }) if vertices.len() == 3),
@@ -235,27 +239,28 @@ mod tests {
         let mut tool = SpaceTool::new();
         tool.on_start();
 
+        let si = SpatialIndex::new();
         tool.on_input(&InputEvent::Click {
             button: MouseButton::Left,
             x: 0.0,
             y: 0.0,
-        });
+        }, &si);
         tool.on_input(&InputEvent::Click {
             button: MouseButton::Left,
             x: 100.0,
             y: 0.0,
-        });
+        }, &si);
         tool.on_input(&InputEvent::Click {
             button: MouseButton::Left,
             x: 100.0,
             y: 100.0,
-        });
+        }, &si);
 
         let response = tool.on_input(&InputEvent::Click {
             button: MouseButton::Right,
             x: 0.0,
             y: 0.0,
-        });
+        }, &si);
 
         assert!(matches!(response, ToolResponse::Completed(_)));
     }
@@ -265,22 +270,23 @@ mod tests {
         let mut tool = SpaceTool::new();
         tool.on_start();
 
+        let si = SpatialIndex::new();
         tool.on_input(&InputEvent::Click {
             button: MouseButton::Left,
             x: 0.0,
             y: 0.0,
-        });
+        }, &si);
         tool.on_input(&InputEvent::Click {
             button: MouseButton::Left,
             x: 100.0,
             y: 0.0,
-        });
+        }, &si);
 
         let response = tool.on_input(&InputEvent::Click {
             button: MouseButton::Right,
             x: 0.0,
             y: 0.0,
-        });
+        }, &si);
 
         assert_eq!(response, ToolResponse::Ignored);
     }
@@ -290,13 +296,14 @@ mod tests {
         let mut tool = SpaceTool::new();
         tool.on_start();
 
+        let si = SpatialIndex::new();
         tool.on_input(&InputEvent::Click {
             button: MouseButton::Left,
             x: 0.0,
             y: 0.0,
-        });
+        }, &si);
 
-        let response = tool.on_input(&InputEvent::PointerMove { x: 50.0, y: 30.0 });
+        let response = tool.on_input(&InputEvent::PointerMove { x: 50.0, y: 30.0 }, &si);
 
         assert!(
             matches!(response, ToolResponse::EphemeralLines(ref lines) if lines.len() == 1),
@@ -310,18 +317,19 @@ mod tests {
         let mut tool = SpaceTool::new();
         tool.on_start();
 
+        let si = SpatialIndex::new();
         tool.on_input(&InputEvent::Click {
             button: MouseButton::Left,
             x: 0.0,
             y: 0.0,
-        });
+        }, &si);
         tool.on_input(&InputEvent::Click {
             button: MouseButton::Left,
             x: 100.0,
             y: 0.0,
-        });
+        }, &si);
 
-        let response = tool.on_input(&InputEvent::PointerMove { x: 100.0, y: 100.0 });
+        let response = tool.on_input(&InputEvent::PointerMove { x: 100.0, y: 100.0 }, &si);
 
         // Debería haber 2 líneas: segment 0->1, y segment 1->cursor
         assert!(
@@ -336,15 +344,16 @@ mod tests {
         let mut tool = SpaceTool::new();
         tool.on_start();
 
+        let si = SpatialIndex::new();
         tool.on_input(&InputEvent::Click {
             button: MouseButton::Left,
             x: 0.0,
             y: 0.0,
-        });
+        }, &si);
 
         let response = tool.on_input(&InputEvent::KeyDown {
             key: "Escape".to_string(),
-        });
+        }, &si);
 
         assert_eq!(response, ToolResponse::Consumed);
         assert_eq!(tool.state, SpaceToolState::WaitingForStart);
@@ -355,7 +364,8 @@ mod tests {
         let mut tool = SpaceTool::new();
         tool.on_start();
 
-        let response = tool.on_input(&InputEvent::PointerMove { x: 50.0, y: 30.0 });
+        let si = SpatialIndex::new();
+        let response = tool.on_input(&InputEvent::PointerMove { x: 50.0, y: 30.0 }, &si);
         assert_eq!(response, ToolResponse::Ignored);
     }
 }

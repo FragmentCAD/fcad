@@ -1,5 +1,5 @@
 use bevy_ecs::prelude::*;
-use crate::domain::math::primitives::{Point2D, Line, Circle, Arc};
+use crate::domain::math::primitives::{Point2D, Line, Circle, Arc, Rectangle};
 use serde::{Serialize, Deserialize};
 
 /// Un enum que engloba cualquier tipo de geometría primitiva soportada por el ECS.
@@ -9,6 +9,7 @@ pub enum Geometry {
     Line(Line),
     Circle(Circle),
     Arc(Arc),
+    Rectangle(Rectangle),
 }
 
 /// Componente que define a qué capa semántica (NCS) pertenece la entidad.
@@ -25,6 +26,10 @@ pub struct ColorOverride(pub String);
 /// ni ser indexadas espacialmente.
 #[derive(Component, Debug, Clone, Serialize, Deserialize)]
 pub struct Deleted;
+
+/// Componente de marcado para entidades seleccionadas en el viewport.
+#[derive(Component, Debug, Clone, Serialize, Deserialize)]
+pub struct Selected;
 
 /// Recurso global para el estado del proyecto actual
 #[derive(Resource, Debug, Clone, Serialize, Deserialize)]

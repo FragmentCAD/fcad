@@ -1,7 +1,8 @@
+use bevy_ecs::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 pub struct NcsLayerDef {
     pub name: String,
     pub description: String,
@@ -15,9 +16,21 @@ pub struct NcsFile {
     pub layers: Vec<NcsLayerDef>,
 }
 
-#[derive(Debug, Clone)]
-pub struct NcsDictionary {
-    pub layers: HashMap<String, [f32; 4]>,
+/// Recurso que almacena el catálogo completo de capas disponibles.
+#[derive(Resource, Debug, Clone, Default)]
+pub struct LayerStandards {
+    pub catalog: HashMap<String, NcsLayerDef>,
+    pub active_discipline: String,
+}
+
+/// Recurso que rastrea la capa activa actualmente para el dibujo.
+#[derive(Resource, Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ActiveLayer(pub String);
+
+impl Default for ActiveLayer {
+    fn default() -> Self {
+        Self("0".to_string())
+    }
 }
 
 pub fn hex_to_rgba(hex: &str) -> [f32; 4] {
@@ -31,21 +44,51 @@ pub fn hex_to_rgba(hex: &str) -> [f32; 4] {
     [r, g, b, 1.0]
 }
 
-impl NcsDictionary {
+impl LayerStandards {
     pub fn new() -> Self {
-        Self { layers: HashMap::new() }
+        Self {
+            catalog: HashMap::new(),
+            active_discipline: "A".to_string(),
+        }
     }
 
-    pub fn load_from_yaml(yaml_content: &str) -> Result<Self, serde_yaml::Error> {
+    pub fn load_from_yaml(&mut self, yaml_content: &str) -> Result<(), serde_yaml::Error> {
         let ncs_file: NcsFile = serde_yaml::from_str(yaml_content)?;
-        let mut map = HashMap::new();
         for layer in ncs_file.layers {
-            map.insert(layer.name, hex_to_rgba(&layer.color_hex));
+            self.catalog.insert(layer.name.clone(), layer);
         }
-        Ok(Self { layers: map })
+        Ok(())
+    }
+
+    pub fn get_layer(&self, name: &str) -> Option<&NcsLayerDef> {
+        self.catalog.get(name)
+    }
+
+    pub fn get_layers_by_discipline(&self, discipline: &str) -> Vec<NcsLayerDef> {
+        self.catalog
+            .values()
+            .filter(|l| l.name.starts_with(discipline))
+            .cloned()
+            .collect()
     }
 
     pub fn get_color(&self, layer_name: &str) -> [f32; 4] {
-        self.layers.get(layer_name).copied().unwrap_or([1.0, 1.0, 1.0, 1.0])
+        self.catalog
+            .get(layer_name)
+            .map(|l| hex_to_rgba(&l.color_hex))
+            .unwrap_or([1.0, 1.0, 1.0, 1.0])
+    }
+}
+
+/// Sistema ECS que detecta entidades nuevas (con geometría) que NO tienen capa,
+/// y les asigna la capa activa actualmente.
+pub fn assign_active_layer_system(
+    mut commands: Commands,
+    active_layer: Res<ActiveLayer>,
+    // Usamos Changed o Added para detectar nuevas geometrías
+    query: Query<Entity, (With<crate::domain::Geometry>, Without<crate::domain::Layer>)>,
+) {
+    for entity in query.iter() {
+        commands.entity(entity).insert(crate::domain::Layer(active_layer.0.clone()));
     }
 }
