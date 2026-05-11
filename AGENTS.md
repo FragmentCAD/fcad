@@ -26,6 +26,35 @@ El proyecto ha sido rediseñado para gritar su propósito:
 1.  **Diferenciación Conceptual**: La UI (Studio) no realiza cálculos matemáticos, solo envía comandos IPC nativos. El Motor (Core) no accede a las ventanas; su estado de la memoria es alterado a través del Component System local en el ECS (Bevy).
 2.  **No re-escribir lógica de dominio:** Siempre que interactúes con entidades como "Muros" o "Geometrías", hazlo a través de las primitivas de `fcad-core` (geo-types), nunca construyas representaciones paralelas en TS ni escribas wrappers ad-hoc redundantes.
 
+### Ley de Autoridad de Estado (OBLIGATORIA)
+
+Esta ley manda sobre cualquier implementación puntual:
+
+1. **`fcad-core` / `World ECS` es la única fuente de verdad del documento CAD.**
+2. **Prohibido duplicar estado geométrico o semántico en `fcad-studio`.** La UI puede guardar estado visual/transitorio, pero no la verdad del plano.
+3. **Prohibido que `fcad-renderer` tome decisiones de dominio.** El renderer puede cachear buffers GPU, dirty ranges y estado gráfico derivado; nunca decide qué existe en el documento.
+4. **Todo cambio del documento debe entrar como `DomainCommand`.** Ejemplos: `CreateLine`, `EraseEntity`, `CreateRoomEnvelope`, `ApplyLayoutPlan`, `ChangeLayer`.
+5. **Toda mutación del ECS debe producir `DomainEvent` y, si corresponde, `RenderInvalidation`.** El renderer se actualiza por consecuencias explícitas, no por suposiciones.
+6. **Los índices espaciales son derivados del ECS.** `SpatialIndex`, hit-test y snap no son verdades paralelas; deben reconstruirse o sincronizarse desde sistemas controlados.
+7. **MCP es un adaptador externo, no el runtime interno del CAD.** La UI, herramientas nativas e IA interna deben hablar con un command bus tipado; MCP expone un subconjunto hacia agentes externos.
+8. **La IA no escribe geometría cruda libremente.** Los agentes proponen intenciones o planes; el Core valida, genera preview y el humano o flujo autorizado confirma.
+
+Modelo obligatorio:
+
+```text
+InputIntent → DomainCommand → ECS Mutation → DomainEvent → RenderInvalidation → Renderer Update
+```
+
+Referencia normativa:
+- `docs/architecture/ecs-authority-model.md`
+- `docs/architecture/command-bus-and-events.md`
+- `docs/architecture/render-invalidation-contract.md`
+- `docs/architecture/ai-runtime-bridge.md`
+- `docs/roadmap/ai-first-v0-roadmap.md`
+
+Skill local obligatoria para agentes:
+- `skills/fcad-ecs-authority/SKILL.md` — cargarla cuando una tarea toque ECS, Core, sincronización Renderer/Tauri, estado CAD, MCP o herramientas IA.
+
 ## 3. Dinámica del Orquestador y Reglas Operativas
 1.  **TDD Iterativo y Verificado:** Para flujos complejos de diseño (ej. *precision-drawing-engine* e *interactive tests*) usamos metodologías TDD. Si escribes funciones nuevas, implementa la batería de pruebas en Rust.
 2.  **Archivos de Datos Inteligentes:** `fcad-assets/` no es solo "recursos". Es la base de datos de contexto arquitectónico y estándares de la empresa para ti. Extrae YAML y JSON de esa carpeta, nunca intentes hardcodear capas arquitectónicas o parámetros de diseño como grosores en el código Rust o TS.

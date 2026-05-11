@@ -23,6 +23,7 @@ yarn-error.log*
 pnpm-debug.log*
 
 # Editor directories and files
+.atl/
 .vscode/
 .idea/
 *.suo
